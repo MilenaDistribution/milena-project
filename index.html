@@ -605,10 +605,11 @@ function showPassArea() {
             t.innerHTML = headHtml;
             db.shps.forEach(s => { 
                 let idx = db.shps.indexOf(s);
+// Замени досегашния ред с този (използваме името на обекта s):
 let row = `<tr><td style="text-align:left;font-weight:bold;white-space:nowrap;">
     <button class="del-mini" onclick="delShp('${s}')">🗑️</button>
-    <button class="del-mini" onclick="moveShp(${idx}, -1)">▲</button>
-    <button class="del-mini" onclick="moveShp(${idx}, 1)">▼</button>
+    <button class="del-mini" onclick="moveShp('${s}', -1)">▲</button>
+    <button class="del-mini" onclick="moveShp('${s}', 1)">▼</button>
     ${s}
 </td>`;
                 row += db.arts.map(a => `<td><input type="number" style="margin:0;padding:5px;text-align:center;" value="${(db.mtx&&db.mtx[s]&&db.mtx[s][a])||''}" placeholder="0" onchange="lclUpMx('${s}','${a}',this.value)"></td>`).join('');
@@ -653,7 +654,12 @@ let row = `<tr><td style="text-align:left;font-weight:bold;white-space:nowrap;">
     document.getElementById('n-gps-lnk').value = ''; 
     sv();
     rnd(); // Задължително обновяване
-    function moveShp(index, direction) {
+    function moveShp(shopName, direction) {
+    let index = db.shps.indexOf(shopName);
+    
+    // Ако не намери обекта, спираме
+    if (index === -1) return;
+    
     let newIndex = index + direction;
     
     // Проверка за границите на масива
@@ -664,9 +670,16 @@ let row = `<tr><td style="text-align:left;font-weight:bold;white-space:nowrap;">
     db.shps[index] = db.shps[newIndex];
     db.shps[newIndex] = temp;
     
-    sv(); // Записваме новата подредба във Firebase
-    rnd(); // Презареждаме, за да се покаже промяната
-}
+    // ТЪЙ КАТО ТУК ПРОМЕНЯМЕ И МАТРИЦАТА (mtx), НЕКА Я ОБНОВИМ
+    // Това ще пренареди и данните в матрицата (ако има записани бройки)
+    if (db.mtx) {
+        let tempMtx = db.mtx[db.shps[index]];
+        db.mtx[db.shps[index]] = db.mtx[db.shps[newIndex]];
+        db.mtx[db.shps[newIndex]] = tempMtx;
+    }
+    
+    sv(); 
+    rnd(); 
 }
         function delGpsShop(id, name) {
     // Изискване на парола преди изтриване
