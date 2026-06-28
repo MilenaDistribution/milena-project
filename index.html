@@ -263,10 +263,16 @@
                     return;
                 }
                 console.log('[Milena] Стартиране на enableIndexedDbPersistence (локален IndexedDB кеш за RTDB)...');
-                const request = indexedDB.open('milena-rtdb-offline', 1);
+                const request = indexedDB.open('milena-rtdb-offline', 2);
                 request.onerror = function() { reject(request.error); };
                 request.onupgradeneeded = function(e) {
-                    e.target.result.createObjectStore('users', { keyPath: 'userId' });
+                    const db = e.target.result;
+                    if (!db.objectStoreNames.contains('users')) {
+                        db.createObjectStore('users', { keyPath: 'userId' });
+                    }
+                    if (!db.objectStoreNames.contains('unsyncedReports')) {
+                        db.createObjectStore('unsyncedReports', { keyPath: 'id' });
+                    }
                 };
                 request.onsuccess = function() {
                     idbDb = request.result;
@@ -337,6 +343,40 @@
             });
         }
 
+        function saveUnsyncedReport(userId, report) {
+            return new Promise(function(resolve, reject) {
+                if (!idbDb) { resolve(); return; }
+                const tx = idbDb.transaction('unsyncedReports', 'readwrite');
+                tx.objectStore('unsyncedReports').put({ id: report.id, userId: userId, report: report, createdAt: Date.now() });
+                tx.oncomplete = function() { resolve(); };
+                tx.onerror = function() { reject(tx.error); };
+            });
+        }
+
+        function getAllUnsyncedReports(userId) {
+            return new Promise(function(resolve, reject) {
+                if (!idbDb) { resolve([]); return; }
+                const tx = idbDb.transaction('unsyncedReports', 'readonly');
+                const store = tx.objectStore('unsyncedReports');
+                const req = store.getAll();
+                req.onsuccess = function() { 
+                    const reports = req.result.filter(r => r.userId === userId);
+                    resolve(reports.map(r => r.report));
+                };
+                req.onerror = function() { reject(req.error); };
+            });
+        }
+
+        function deleteUnsyncedReport(reportId) {
+            return new Promise(function(resolve, reject) {
+                if (!idbDb) { resolve(); return; }
+                const tx = idbDb.transaction('unsyncedReports', 'readwrite');
+                tx.objectStore('unsyncedReports').delete(reportId);
+                tx.oncomplete = function() { resolve(); };
+                tx.onerror = function() { reject(tx.error); };
+            });
+        }
+
         function updateConnStatus() {
             const el = document.getElementById('conn-status');
             if (!el) return;
@@ -350,20 +390,32 @@
 
 
         function syncData() {
-            if (!navigator.onLine || !currentUser || !db || Object.keys(db).length === 0) return;
+            if (!navigator.onLine || !currentUser) return;
             console.log('[Milena] Засичане на интернет връзка. Автоматично синхронизиране на локалния кеш с Firebase...');
             
-            readCachedUserData(currentUser)
-            .then(function(cached) {
+            Promise.all([
+                readCachedUserData(currentUser),
+                getAllUnsyncedReports(currentUser)
+            ])
+            .then(function([cached, unsyncedReports]) {
                 if (cached) {
                     db = cached;
                     normalizeDb();
                     rnd();
-                    return rtdbSet(dbRef(currentUser), db);
                 }
+                
+                // Първо качваме цялата база данни
+                return rtdbSet(dbRef(currentUser), db)
+                .then(function() {
+                    console.log('[Milena] ✅ Локалните данни бяха успешно синхронизирани с Firebase сървъра.');
+                    
+                    // След това изтриваме не синхронизираните отчети, тъй като вече са в Firebase
+                    const deletePromises = unsyncedReports.map(report => deleteUnsyncedReport(report.id));
+                    return Promise.all(deletePromises);
+                });
             })
             .then(function() {
-                console.log('[Milena] ✅ Локалните данни бяха успешно синхронизирани с Firebase сървъра.');
+                console.log('[Milena] ✅ Всички не синхронизирани отчети са обработени.');
             })
             .catch(function(err) {
                 console.error('[Milena] ❌ Грешка при автоматичната синхронизация:', err);
@@ -391,6 +443,9 @@
         window.whenDbReady = whenDbReady;
         window.cacheUserData = cacheUserData;
         window.readCachedUserData = readCachedUserData;
+        window.saveUnsyncedReport = saveUnsyncedReport;
+        window.getAllUnsyncedReports = getAllUnsyncedReports;
+        window.deleteUnsyncedReport = deleteUnsyncedReport;
         window.persistenceActive = function() { return persistenceActive; };
     </script>
 
@@ -501,17 +556,33 @@
 
         function loadData() {
     whenDbReady(function() {
-        // Офлайн-първо (offline-first): Проверяваме дали кешът има данни
-        readCachedUserData(currentUser)
-        .then(function(cached) {
+        // Офлайн-първо (offline-first): Проверяваме дали кешът има данни и не синхронизираните отчети
+        Promise.all([
+            readCachedUserData(currentUser),
+            getAllUnsyncedReports(currentUser)
+        ])
+        .then(function([cached, unsyncedReports]) {
             if (cached) {
                 db = cached;
                 console.log('[Milena] ✅ Данни заредени първоначално от локален IndexedDB кеш.');
-                normalizeDb();
-                rnd();
             } else {
                 console.log('[Milena] Локалният кеш е празен. Принудителен fetch от Firebase сървъра...');
             }
+            
+            normalizeDb();
+            
+            // Добавяме не синхронизираните отчети към db.history
+            if (unsyncedReports && unsyncedReports.length > 0) {
+                if (!db.history) db.history = {};
+                unsyncedReports.forEach(report => {
+                    db.history[report.id] = report;
+                });
+                console.log('[Milena] ✅ Заредени ' + unsyncedReports.length + ' не синхронизирани отчета.');
+                // Кешираме отново с добавените отчети
+                cacheUserData(currentUser, db);
+            }
+            
+            rnd();
 
             // Изтегляме 'живите' данни от Firebase сървъра без да блокираме първоначалното показване
             return rtdbGet(dbRef(currentUser));
@@ -519,6 +590,15 @@
         .then(function(snapshot) {
             if (snapshot && snapshot.exists()) {
                 let data = snapshot.val();
+                // Обединяваме данните от Firebase с локалните, запазвайки не синхронизираните отчети
+                if (!data.history) data.history = {};
+                if (db.history) {
+                    Object.keys(db.history).forEach(key => {
+                        if (!data.history[key]) {
+                            data.history[key] = db.history[key];
+                        }
+                    });
+                }
                 db = data;
                 normalizeDb();
                 rnd();
@@ -645,11 +725,12 @@
             let total = (tp - tm).toFixed(2);
 
             if(!db.history) db.history = {};
-            db.history[histId] = {
+            const newReport = {
                 date: dateStr,
                 total: total,
                 snapshot: JSON.parse(JSON.stringify(db.flds))
             };
+            db.history[histId] = newReport;
 
             whenDbReady(function() {
                 // 1. Първо записваме в локалния IndexedDB кеш за офлайн сигурност
@@ -664,8 +745,17 @@
                             alert(`✅ Отчетът е записан успешно и архивиран за днес!\n💰 Сума: ${total} €`);
                         });
                     } else {
-                        // Офлайн режим: Оставяме отчета записан локално
-                        alert(`💾 Отчетът е записан ЛОКАЛНО.\n💰 Сума: ${total} €`);
+                        // Офлайн режим: Записваме отчета и в unsyncedReports
+                        const unsyncedReport = {
+                            id: histId,
+                            date: dateStr,
+                            total: total,
+                            snapshot: JSON.parse(JSON.stringify(db.flds))
+                        };
+                        return saveUnsyncedReport(currentUser, unsyncedReport)
+                        .then(function() {
+                            alert(`💾 Отчетът е записан ЛОКАЛНО и ще се синхронизира при връзка!\n💰 Сума: ${total} €`);
+                        });
                     }
                 })
                 .catch(function(err) {
