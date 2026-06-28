@@ -604,7 +604,13 @@ function showPassArea() {
             let headHtml = '<tr><th>Обект</th>' + db.arts.map(x => `<th>${x} <div class="th-del-box" onclick="delArt('${x}')">🗑️ Махни</div></th>`).join('') + '</tr>';
             t.innerHTML = headHtml;
             db.shps.forEach(s => { 
-                let row = `<tr><td style="text-align:left;font-weight:bold;white-space:nowrap;"><button class="del-mini" onclick="delShp('${s}')">🗑️</button> ${s}</td>`;
+                let idx = db.shps.indexOf(s);
+let row = `<tr><td style="text-align:left;font-weight:bold;white-space:nowrap;">
+    <button class="del-mini" onclick="delShp('${s}')">🗑️</button>
+    <button class="del-mini" onclick="moveShp(${idx}, -1)">▲</button>
+    <button class="del-mini" onclick="moveShp(${idx}, 1)">▼</button>
+    ${s}
+</td>`;
                 row += db.arts.map(a => `<td><input type="number" style="margin:0;padding:5px;text-align:center;" value="${(db.mtx&&db.mtx[s]&&db.mtx[s][a])||''}" placeholder="0" onchange="lclUpMx('${s}','${a}',this.value)"></td>`).join('');
                 t.innerHTML += row + '</tr>';
             });
@@ -647,6 +653,20 @@ function showPassArea() {
     document.getElementById('n-gps-lnk').value = ''; 
     sv();
     rnd(); // Задължително обновяване
+    function moveShp(index, direction) {
+    let newIndex = index + direction;
+    
+    // Проверка за границите на масива
+    if (newIndex < 0 || newIndex >= db.shps.length) return;
+    
+    // Размяна на елементите
+    let temp = db.shps[index];
+    db.shps[index] = db.shps[newIndex];
+    db.shps[newIndex] = temp;
+    
+    sv(); // Записваме новата подредба във Firebase
+    rnd(); // Презареждаме, за да се покаже промяната
+}
 }
         function delGpsShop(id, name) {
     // Изискване на парола преди изтриване
