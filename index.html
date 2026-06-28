@@ -639,7 +639,21 @@ function showPassArea() {
     }
 }
         function toggleRegion(id, btn) { let el = document.getElementById(id); if(el.style.display === 'block') { el.style.display = 'none'; btn.classList.remove('open'); } else { el.style.display = 'block'; btn.classList.add('open'); } }
-        function clGps() { if(confirm('Изтриване на всички локации?')) { db.regions = []; db.gpsShops = []; sv(); } }
+        function clGps() {
+    // Проверка за парола
+    let pass = prompt("Въведи парола за изтриване на всички локации:");
+    if (pass !== "981212") {
+        alert("Грешна парола!");
+        return;
+    }
+
+    if (confirm('Сигурен ли си, че искаш да изтриеш всички локации?')) {
+        db.regions = [];
+        db.gpsShops = [];
+        sv();
+        rnd(); // Обновяваме екрана след изтриването
+    }
+}
         
         function rndGps() {
     let sel = document.getElementById('sel-reg');
