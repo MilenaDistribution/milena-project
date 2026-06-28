@@ -531,8 +531,28 @@ function showPassArea() {
         rnd(); 
     } 
 }
-        function delShp(s) { if(confirm(`Изтриване на обект "${s}"?`)) { db.shps = db.shps.filter(x => x !== s); if(db.mtx && db.mtx[s]) delete db.mtx[s]; sv(); } }
-        function delArt(a) { if(confirm(`Изтриване на хляб "${a}"?`)) { db.arts = db.arts.filter(x => x !== a); if(db.shps) db.shps.forEach(s => { if(db.mtx && db.mtx[s]) delete db.mtx[s][a]; }); sv(); } }
+        function delShp(s) { 
+    let pass = prompt("Въведи парола за изтриване:");
+    if (pass !== "981212") { alert("Грешна парола!"); return; }
+    
+    if(confirm(`Изтриване на обект "${s}"?`)) { 
+        db.shps = db.shps.filter(x => x !== s); 
+        if(db.mtx && db.mtx[s]) delete db.mtx[s]; 
+        sv(); 
+    } 
+}
+        function delArt(a) { 
+    let pass = prompt("Въведи парола за изтриване:");
+    if (pass !== "981212") { alert("Грешна парола!"); return; }
+    
+    if(confirm(`Изтриване на хляб "${a}"?`)) { 
+        db.arts = db.arts.filter(x => x !== a); 
+        if(db.shps) db.shps.forEach(s => { 
+            if(db.mtx && db.mtx[s]) delete db.mtx[s][a]; 
+        }); 
+        sv(); 
+    } 
+}
         
         function lclUpMx(s, a, v) { if(!db.mtx) db.mtx = {}; if(!db.mtx[s]) db.mtx[s] = {}; db.mtx[s][a] = parseInt(v) || 0; rndMxTot(); }
         
@@ -541,7 +561,17 @@ function showPassArea() {
         }
         
         function clMtx() { if(confirm('Изчистване на бройките?')) { db.mtx = {}; sv(); } }
-        function delAllRy() { if(confirm('Изтриване на всичко?')) { db.shps = []; db.arts = []; db.mtx = {}; sv(); } }
+        function delAllRy() { 
+    let pass = prompt("Въведи парола за изтриване на целия район:");
+    if (pass !== "981212") { alert("Грешна парола!"); return; }
+    
+    if(confirm('Изтрий всичко?')) { 
+        db.shps = []; 
+        db.arts = []; 
+        db.mtx = {}; 
+        sv(); 
+    } 
+}
         
         function rndMx() {
             let t = document.getElementById('m-tx'); t.innerHTML = '';
