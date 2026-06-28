@@ -86,18 +86,11 @@
         <button onclick="login()" class="btn-success" style="width: 250px; padding: 12px;">Влез</button>
     </div>
 </div>
-            <div id="pass-area" style="display:none;">
-                <label>Въведи лична парола:</label>
-                <input type="password" id="user-pass" placeholder="••••" style="text-align:center; font-size:22px; letter-spacing:5px;">
-                <button onclick="login()" class="btn-success" style="padding:14px;">Влез</button>
-            </div>
-        </div>
-    </div>
 
-    <header>
-        Хляб "Милена" (<span id="user-title">...</span>)
-        <button class="logout-btn" onclick="logout()">Изход</button>
-    </header>
+<header>
+    Хляб "Милена" (<span id="user-title">...</span>)
+    <button class="logout-btn" onclick="logout()">Изход</button>
+</header>
     <nav class="nav-bar">
         <button class="nav-item active" onclick="swPg('kasi', this)"><span>📦 КАСИ</span></button>
         <button class="nav-item" onclick="swPg('otchet', this)"><span>💶 ОТЧЕТ</span></button>
@@ -486,9 +479,9 @@ const PASSWORDS = {
 function showPassArea() {
     let select = document.getElementById('user-select');
     if (select.value) {
-        currentUser = select.value; // Задаваме кой е потребителят
+        currentUser = select.value;
         document.getElementById('pass-area').style.display = 'block';
-        document.getElementById('user-pass').value = ''; // Изчистваме предишната парола
+        document.getElementById('user-pass').value = ''; 
     }
 }
         
@@ -607,15 +600,20 @@ function showPassArea() {
             db.shps.forEach(s => { 
                 let idx = db.shps.indexOf(s);
 // Замени досегашния ред с този (използваме името на обекта s):
-let row = `<tr><td style="text-align:left;font-weight:bold;white-space:nowrap;">
-    <button class="del-mini" onclick="delShp('${s}')">🗑️</button>
-    <button class="del-mini" onclick="moveShp('${s}', -1)">▲</button>
-    <button class="del-mini" onclick="moveShp('${s}', 1)">▼</button>
-    ${s}
-</td>`;
-                row += db.arts.map(a => `<td><input type="number" style="margin:0;padding:5px;text-align:center;" value="${(db.mtx&&db.mtx[s]&&db.mtx[s][a])||''}" placeholder="0" onchange="lclUpMx('${s}','${a}',this.value)"></td>`).join('');
-                t.innerHTML += row + '</tr>';
-            });
+db.shps.forEach(s => { 
+    // Кодираме името за безопасност
+    let safeName = btoa(encodeURIComponent(s));
+    
+    let row = `<tr><td style="text-align:left;font-weight:bold;white-space:nowrap;">
+        <button class="del-mini" onclick="delShp('${s}')">🗑️</button>
+        <button class="del-mini" onclick="moveShp('${safeName}', -1)">▲</button>
+        <button class="del-mini" onclick="moveShp('${safeName}', 1)">▼</button>
+        ${s}
+    </td>`;
+    
+    row += db.arts.map(a => `<td><input type="number" style="margin:0;padding:5px;text-align:center;" value="${(db.mtx&&db.mtx[s]&&db.mtx[s][a])||''}" placeholder="0" onchange="lclUpMx('${s}','${a}',this.value)"></td>`).join('');
+    t.innerHTML += row + '</tr>';
+});
             let h = `<tr class="row-total"><td style="text-align:left;">ОБЩО:</td>`;
             db.arts.forEach(a => { let tot = 0; db.shps.forEach(s => { tot += (db.mtx && db.mtx[s] && db.mtx[s][a]) || 0; }); h += `<td id="t-a-${btoa(encodeURIComponent(a)).replace(/=/g,'')}">${tot}</td>`; });
             t.innerHTML += h + '</tr>';
@@ -660,6 +658,7 @@ function moveShp(encodedName, direction) {
     let shopName = decodeURIComponent(atob(encodedName));
     let index = db.shps.indexOf(shopName);
     if (index === -1) return;
+    
     let newIndex = index + direction;
     if (newIndex < 0 || newIndex >= db.shps.length) return;
     
