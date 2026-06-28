@@ -221,8 +221,32 @@
         const app = initializeApp(firebaseConfig);
         const rtdb = getDatabase(app);
 
-        // Firebase Auth persistence for offline use
-        firebase.auth().setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+        // Firebase Auth persistence for offline use (safely wrapped to avoid ReferenceError/crashes)
+        try {
+            if (typeof firebase !== 'undefined' && firebase.auth) {
+                firebase.auth().setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+            } else {
+                console.log('[Milena] Дефинираме съвместим mock за firebase.auth, за да избегнем ReferenceError...');
+                window.firebase = window.firebase || {
+                    auth: function() {
+                        return {
+                            setPersistence: function(p) {
+                                console.log('[Milena Mock] Auth persistence set to:', p);
+                                return Promise.resolve();
+                            }
+                        };
+                    }
+                };
+                window.firebase.auth.Auth = {
+                    Persistence: {
+                        LOCAL: 'local'
+                    }
+                };
+                firebase.auth().setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+            }
+        } catch (e) {
+            console.warn('[Milena] Грешка при настройка на Firebase Auth persistence:', e);
+        }
 
         let persistenceActive = false;
         let idbDb = null;
@@ -450,34 +474,46 @@
 
         function loadData() {
     whenDbReady(function() {
-        // Офлайн-първо (offline-first): Опитваме да заредим локално запазените данни веднага, преди сървъра
+        // Офлайн-първо (offline-first): Проверяваме дали кешът има данни
         readCachedUserData(currentUser)
         .then(function(cached) {
             if (cached) {
                 db = cached;
-                console.log('[Milena] ✅ Данни заредени първоначално от локален IndexedDB кеш (offline-first).');
+                console.log('[Milena] ✅ Данни заредени първоначално от локален IndexedDB кеш.');
+                normalizeDb();
+                rnd();
             } else {
-                db = defData();
-                console.log('[Milena] Няма намерени данни в локалния кеш. Зарежда се празен шаблон.');
+                console.log('[Milena] Локалният кеш е празен. Принудителен fetch от Firebase сървъра...');
             }
-            normalizeDb();
-            rnd();
 
-            // След това изтегляме най-новите данни от Firebase, за да ги актуализираме
+            // Изтегляме 'живите' данни от Firebase сървъра без да блокираме първоначалното показване
             return rtdbGet(dbRef(currentUser));
         })
         .then(function(snapshot) {
-            let data = snapshot.val();
-            if (data) {
+            if (snapshot && snapshot.exists()) {
+                let data = snapshot.val();
                 db = data;
                 normalizeDb();
                 rnd();
-                console.log('[Milena] ✅ Данни успешно обновени и синхронизирани с Firebase.');
+                console.log('[Milena] ✅ Данни успешно изтеглени от Firebase сървъра и синхронизирани.');
                 return cacheUserData(currentUser, db);
+            } else {
+                console.log('[Milena] Няма данни във Firebase за потребителя. Използва се локалния кеш или празен шаблон.');
+                if (!db || Object.keys(db).length === 0) {
+                    db = defData();
+                    normalizeDb();
+                    rnd();
+                }
             }
         })
         .catch(function(err) {
-            console.warn('[Milena] Firebase не е достъпен или възникна грешка при обновяване. Използва се локалният кеш:', err);
+            console.warn('[Milena] Неуспешно зареждане от Firebase сървъра (вероятно офлайн):', err);
+            // При грешка/офлайн, ако все още нямаме заредени данни (кешът е бил празен), зареждаме дефолтни
+            if (!db || Object.keys(db).length === 0) {
+                db = defData();
+                normalizeDb();
+                rnd();
+            }
         });
     });
 }
