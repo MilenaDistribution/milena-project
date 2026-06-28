@@ -887,13 +887,20 @@ if (SpeechRecognition) {
         processVoiceCommand(transcript);
     };
 
-    recognition.onerror = () => {
-        status.innerText = "Грешка при слушане.";
-        voiceBtn.style.background = "#e11d48";
-    };
-} else {
-    voiceBtn.style.display = 'none';
-}
+    recognition.onerror = (event) => {
+    // Вдигаме поп-ап, за да видим точното име на грешката на екрана на телефона
+    alert("Грешка при слушане: " + event.error);
+    status.innerText = "Грешка: " + event.error;
+    
+    // Допълнителни насоки за най-честите грешки
+    if (event.error === 'not-allowed') {
+        console.log("Потребителят е блокирал микрофона.");
+    } else if (event.error === 'network') {
+        console.log("Проблем с мрежата или HTTPS.");
+    } else if (event.error === 'service-not-allowed') {
+        console.log("Браузърът забранява използването на услугата.");
+    }
+};
 
 function processVoiceCommand(text) {
     // ТУК ще напишем "интелекта"
