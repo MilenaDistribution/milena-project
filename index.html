@@ -160,6 +160,11 @@
             <button onclick="svFinAll()" class="btn-success" style="margin-bottom:10px; background:#16a34a; font-size:16px;">💾 Запиши отчета</button>
             <button onclick="calFin(true)" class="btn-secondary" style="margin-bottom:10px; background:#0284c7;">Преизчисли сумата</button>
             <button class="btn-danger btn-secondary" onclick="clFin()" style="margin-bottom:20px;">Нулиране на парите</button>
+            <div class="card" style="margin-top: 20px; border: 2px solid #6366f1;">
+    <h2>🤖 Асистент Милена</h2>
+    <input type="text" id="ai-q" placeholder="Питай асистента за отчета..." style="margin-bottom: 10px;">
+    <button onclick="askAI(document.getElementById('ai-q').value)" class="btn-secondary" style="background:#6366f1;">Попитай ИИ</button>
+</div>
 
             <!-- НОВА СЕКЦИЯ: АРХИВ НА ОТЧЕТИТЕ -->
             <div class="card">
