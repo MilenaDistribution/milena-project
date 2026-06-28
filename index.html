@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+<meta http-equiv="Content-Security-Policy" content="default-src * 'unsafe-inline' 'unsafe-eval'; script-src * 'unsafe-inline' 'unsafe-eval'; connect-src * 'unsafe-inline'; img-src * data: blob: 'unsafe-inline'; frame-src *; style-src * 'unsafe-inline';">
+    <meta charset="UTF-8">
+  
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Фирма Милена - Дистрибуция</title>
+    
+    <!-- Включване на официалните библиотеки на Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
+    <style>
+        :root { --primary: #0284c7; --accent: #16a34a; --danger: #dc2626; --bg: #f8fafc; --card: #ffffff; --text: #0f172a; }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, sans-serif; }
+        body { background-color: var(--bg); color: var(--text); padding-top: 5px; }
+        header { background: #0369a1; color: white; padding: 12px; text-align: center; font-size: 18px; font-weight: bold; position: relative; }
+        .logout-btn { position: absolute; right: 10px; top: 10px; background: #b91c1c; color: white; border: none; padding: 5px 10px; font-size: 12px; border-radius: 6px; cursor: pointer; }
+        .nav-bar { background: white; display: flex; border-bottom: 2px solid #e2e8f0; height: 60px; margin-bottom: 15px; }
+        .nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #64748b; font-size: 12px; font-weight: bold; background: none; border: none; border-bottom: 3px solid transparent; }
+        .nav-item.active { color: var(--primary); border-bottom-color: var(--primary); background: #f0f9ff; }
+        .container { padding: 10px; max-width: 600px; margin: 0 auto; }
+        .page { display: none; }
+        .page.active { display: block; }
+        .card { background: var(--card); padding: 15px; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin-bottom: 15px; border: 1px solid #e2e8f0; }
+        h2 { margin-bottom: 12px; font-size: 16px; color: #0369a1; border-bottom: 2px solid #f1f5f9; padding-bottom: 5px; }
+        label { display: block; margin-bottom: 5px; font-size: 13px; font-weight: 600; color: #475569; }
+        input, select { width: 100%; padding: 10px; margin-bottom: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 15px; background: white; }
+        .inline-inputs { display: flex; gap: 10px; }
+        .inline-inputs div { flex: 1; }
+        button { width: 100%; padding: 12px; background: var(--primary); color: white; border: none; border-radius: 8px; font-size: 15px; font-weight: bold; cursor: pointer; }
+        .btn-success { background: var(--accent); }
+        .btn-danger { background: var(--danger); }
+        .btn-secondary { background: #64748b; margin-top: 5px; padding: 8px; font-size: 13px; }
+        .btn-viber { background: #7360f2; margin-bottom: 15px; font-size: 16px; box-shadow: 0 4px 6px rgba(115, 96, 242, 0.2); }
+        .total-box { color: white; padding: 15px; border-radius: 12px; text-align: center; font-size: 20px; font-weight: bold; margin-bottom: 10px; }
+        .bg-win { background: var(--accent); }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
+        th, td { border: 1px solid #e2e8f0; padding: 8px; text-align: center; }
+        th { background: #f1f5f9; position: relative; }
+        .row-total { background: #f0f9ff !important; font-weight: bold; color: var(--primary); }
+        
+        .money-row { display: flex; align-items: center; gap: 5px; margin-bottom: 10px; }
+        .money-row label { margin-bottom: 0; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .money-row input { margin-bottom: 0; width: 120px; }
+        .del-money-btn { background: none; color: var(--danger); border: none; width: 35px; padding: 5px; font-size: 16px; }
+        .del-mini { background: none; color: var(--danger); border: none; padding: 2px 4px; font-size: 12px; display: inline-block; width: auto; margin-left: 3px; }
+        .th-del-box { font-size: 10px; padding: 2px; margin-top: 2px; background: #fee2e2; color: #b91c1c; border-radius: 4px; font-weight: normal; cursor: pointer; }
+
+        .region-btn { background: #cbd5e1; color: #0f172a; margin-bottom: 8px; text-align: left; padding: 14px; font-size: 16px; border-radius: 10px; display: flex; justify-content: space-between; align-items: center; width: 100%; border: none; cursor: pointer; }
+        .region-btn.open { background: #0369a1; color: white; }
+        .shops-list { display: none; padding: 5px 10px; margin-bottom: 10px; background: #f1f5f9; border-radius: 8px; }
+        .shop-row { display: flex; align-items: center; background: white; margin: 6px 0; border-radius: 6px; border-left: 4px solid #ea4335; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        .shop-location-item { flex: 1; display: block; padding: 12px; text-decoration: none; color: #0284c7; font-weight: bold; font-size: 15px; text-align: left; }
+        .del-gps-shop { background: none; color: #dc2626; border: none; width: 40px; padding: 12px 0; font-size: 14px; cursor: pointer; }
+
+        #login-screen { position: fixed; top:0; left:0; width:100%; height:100%; background:#0f172a; display:flex; justify-content:center; align-items:center; z-index:9999; padding:20px; }
+        .login-card { background:white; width:100%; max-width:360px; padding:25px; border-radius:16px; text-align:center; box-shadow:0 10px 25px rgba(0,0,0,0.3); }
+        .user-selector { display:flex; gap:15px; margin-bottom:20px; }
+        .user-btn { flex:1; padding:15px; border:2px solid #cbd5e1; border-radius:10px; font-size:16px; font-weight:bold; background:none; color:#475569; cursor: pointer; }
+        .user-btn.selected { border-color:#0284c7; background:#f0f9ff; color:#0284c7; }
+
+        /* Стилове за архива */
+        .archive-item { display: flex; justify-content: space-between; align-items: center; background: #f1f5f9; padding: 10px; border-radius: 8px; margin-bottom: 6px; border-left: 4px solid #0284c7; }
+        .archive-info { font-size: 13px; font-weight: bold; color: #334155; text-align: left; }
+        .archive-actions { display: flex; gap: 5px; }
+        .archive-btn-load { background: #0284c7; color: white; padding: 5px 10px; border: none; border-radius: 6px; font-size: 12px; cursor: pointer; width: auto; }
+        .archive-btn-del { background: #ef4444; color: white; padding: 5px 8px; border: none; border-radius: 6px; font-size: 12px; cursor: pointer; width: auto; }
+    </style>
+</head>
+<body>
+    <div id="login-screen">
+        <div class="login-card">
+            <h2 style="border:none; color:#0369a1; font-size:20px; margin-bottom:20px;">Вход в системата</h2>
+            <div class="user-selector">
+    <button class="user-btn" id="btn-martin" onclick="selUsr('martin')">МАРТИН</button>
+    <button class="user-btn" id="btn-stoyan" onclick="selUsr('stoyan')">СТОЯН</button>
+    <button class="user-btn" id="btn-ivan" onclick="selUsr('ivan')">ИВАН</button>
+</div>
+            <div id="pass-area" style="display:none;">
+                <label>Въведи лична парола:</label>
+                <input type="password" id="user-pass" placeholder="••••" style="text-align:center; font-size:22px; letter-spacing:5px;">
+                <button onclick="login()" class="btn-success" style="padding:14px;">Влез</button>
+            </div>
+        </div>
+    </div>
+
+    <header>
+        Хляб "Милена" (<span id="user-title">...</span>)
+        <button class="logout-btn" onclick="logout()">Изход</button>
+    </header>
+    <nav class="nav-bar">
+        <button class="nav-item active" onclick="swPg('kasi', this)"><span>📦 КАСИ</span></button>
+        <button class="nav-item" onclick="swPg('otchet', this)"><span>💶 ОТЧЕТ</span></button>
+        <button class="nav-item" onclick="swPg('rayon', this)"><span>🚚 РАЙОН</span></button>
+        <button class="nav-item" onclick="swPg('gps', this)"><span>📍 ЛОКАЦИИ</span></button>
+        <button class="nav-item" onclick="swPg('ceni', this)"><span>💰 ЦЕНИ</span></button>
+    </nav>
+    <div class="container">
+        <!-- КАСИ -->
+        <div id="page-kasi" class="page active">
+            <div class="card">
+                <h2>Начално салдо за месеца</h2>
+                <div class="inline-inputs">
+                    <input type="number" id="kasi-saldo" placeholder="Каси задължение">
+                    <button onclick="svSld()" class="btn-success" style="width:100px;">Запиши</button>
+                </div>
+                <p style="font-size:12px; color:#64748b; margin-top:5px;">Текущо салдо: <strong id="cur-sld">0</strong> каси.</p>
+            </div>
+            <div class="card">
+                <h2>Въвеждане за деня</h2>
+                <div class="inline-inputs">
+                    <div><label>Основен</label><input type="number" id="k-osn" placeholder="0"></div>
+                    <div><label>Ръчен</label><input type="number" id="k-rch" placeholder="0"></div>
+                    <div><label>Върнати</label><input type="number" id="k-vrn" placeholder="0"></div>
+                </div>
+                <button onclick="adKs()">Добави ден</button>
+            </div>
+            <div class="card" style="overflow-x: auto;">
+                <h2>Месечен отчет каси</h2>
+                <table>
+                    <thead><tr><th>Дата</th><th>Осн.</th><th>Ръч.</th><th>Върн.</th><th>Остават</th></tr></thead>
+                    <tbody id="kasi-tb"></tbody>
+                </table>
+                <button class="btn-danger btn-secondary" onclick="clKs()">Нулиране</button>
+            </div>
+        </div>
+        <!-- ОТЧЕТ -->
+        <div id="page-otchet" class="page">
+            <div class="total-box bg-win">За отчитане: <span id="fin-tot">0.00</span> €</div>
+            <button onclick="copyToViber()" class="btn-viber">📋 Копирай отчета за Viber</button>
+            <button onclick="openCalc()" class="btn-secondary" style="margin-bottom:10px; background:#eab308;">🧮 Калкулатор товарителница</button>
+            <div class="card">
+                <h2>➕ ПЛЮСОВЕ (Приходи)</h2>
+                <div id="p-lst"></div>
+                <button class="btn-secondary" onclick="adFld('plus')">+ Нов плюс</button>
+            </div>
+            <div class="card">
+                <h2>➖ МИНУСИ (Разходи)</h2>
+                <div id="m-lst"></div>
+                <button class="btn-secondary" onclick="adFld('minus')">+ Нов минус</button>
+            </div>
+            <button onclick="svFinAll()" class="btn-success" style="margin-bottom:10px; background:#16a34a; font-size:16px;">💾 Запиши отчета</button>
+            <button onclick="calFin(true)" class="btn-secondary" style="margin-bottom:10px; background:#0284c7;">Преизчисли сумата</button>
+            <button class="btn-danger btn-secondary" onclick="clFin()" style="margin-bottom:20px;">Нулиране на парите</button>
+
+            <!-- НОВА СЕКЦИЯ: АРХИВ НА ОТЧЕТИТЕ -->
+            <div class="card">
+                <h2>📁 Архив на отчетите за месеца</h2>
+                <div id="archive-list" style="margin-top: 10px; max-height: 250px; overflow-y: auto;">
+                    <p style="color:#64748b; font-size:13px; text-align:center;">Няма записани стари отчети.</p>
+                </div>
+            </div>
+        </div>
+        <!-- РАЙОН -->
+        <div id="page-rayon" class="page">
+            <div class="card">
+                <h2>Управление на района</h2>
+                <div class="inline-inputs"><input type="text" id="n-shp" placeholder="Име на нов обект"><button onclick="adShp()" style="width:100px;">+ Обект</button></div>
+                <div class="inline-inputs" style="margin-top:5px;"><input type="text" id="n-art" placeholder="Нов артикул хляб"><button onclick="adArt()" style="width:100px;" class="btn-success">+ Хляб</button></div>
+            </div>
+            <div class="card" style="overflow-x: auto;">
+                <h2>Таблица със заявки (Бройки)</h2>
+                <table id="m-tx"></table>
+                <button onclick="svMtxAll()" class="btn-success" style="margin-top:15px; background:#16a34a;">💾 Запиши всички бройки</button>
+                <button class="btn-danger btn-secondary" onclick="clMtx()" style="margin-top:5px;">Изчисти бройките</button>
+                <button class="btn-danger btn-secondary" onclick="delAllRy()" style="margin-top:5px; background:#94a3b8;">Изтрий всичко</button>
+            </div>
+        </div>
+        <!-- ЛОКАЦИИ -->
+        <div id="page-gps" class="page">
+            <div class="card">
+                <h2>➕ Добавяне на Район или Обект</h2>
+                <div class="inline-inputs">
+                    <input type="text" id="n-reg" placeholder="Име на район (напр. Несебър)">
+                    <button onclick="adRegion()" style="width:110px;" class="btn-success">+ Район</button>
+                </div>
+                <hr style="margin: 10px 0; border:0; border-top:1px solid #e2e8f0;">
+                <label>Избери Район:</label>
+                <select id="sel-reg"></select>
+                <input type="text" id="n-gps-shp" placeholder="Име на обекта">
+                <input type="text" id="n-gps-lnk" placeholder="Постави координати от Google Maps">
+                <button onclick="adGpsShop()">Добави обект към района</button>
+            </div>
+            <div class="card">
+                <h2>🗺️ Навигация по Райони</h2>
+                <div id="regions-container" style="margin-top: 10px;"></div>
+                <button class="btn-danger btn-secondary" onclick="clGps()" style="margin-top:20px;">Изтрий всички локации</button>
+            </div>
+        </div> <!-- ТУК Е ЗАДЪЛЖИТЕЛНОТО ЗАТВАРЯНЕ НА GPS -->
+
+        <!-- ЦЕНИ -->
+       <div id="page-ceni" class="page">
+    <div class="card">
+        <h2>Настройка на цени</h2>
+        
+        <div class="inline-inputs" style="margin-bottom:15px; display:flex; gap:5px;">
+            <input type="text" id="new-art-name" placeholder="Име на нов артикул">
+            <input type="number" id="new-art-price" placeholder="Цена" style="width:80px;">
+            <button onclick="addNewArt()" class="btn-success">+ Добави</button>
+        </div>
+        <hr style="margin: 10px 0;">
+        <div id="price-list"></div>
+        <button onclick="savePrices()" class="btn-success">Запиши новите цени</button>
+    </div>
+</div>
+
+    <script>
+        const firebaseConfig = {
+            databaseURL: "https://milena-hlqb-default-rtdb.europe-west1.firebasedatabase.app"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+
+        // Старият вариант:
+// const PASSWORDS = { martin: "1111", stoyan: "2222" };
+
+// Новият вариант:
+const PASSWORDS = { 
+    martin: "1212", 
+    stoyan: "2222", 
+    ivan: "12345678" 
+};
+        let currentUser = "";
+        let db = {};
+
+        function selUsr(u) {
+            currentUser = u;
+            document.querySelectorAll('.user-btn').forEach(b => b.classList.remove('selected'));
+            document.getElementById('btn-' + u).classList.add('selected');
+            document.getElementById('pass-area').style.display = 'block';
+            document.getElementById('user-pass').value = '';
+        }
+
+        function login() {
+            let p = document.getElementById('user-pass').value;
+            if (p === PASSWORDS[currentUser]) {
+                document.getElementById('login-screen').style.display = 'none';
+                document.getElementById('user-title').innerText = currentUser.toUpperCase();
+                loadData();
+            } else { alert('Грешна парола!'); }
+        }
+
+        function logout() { document.getElementById('login-screen').style.display = 'flex'; currentUser = ""; db = {}; }
+
+      function defData() {
+    return {
+        sld: 0, 
+        rows: [],
+        flds: { plus: [], minus: [] }, // Празни финансови категории
+        shps: [],                      // Празен списък с магазини
+        arts: [],                      // Празен списък със стоки
+        mtx: {},
+        regions: [],                   // Празен списък с райони
+        gpsShops: [],
+        history: {}, 
+        prices: {}                     // Празен списък с цени
+    };
+}
+
+        function rnd() { 
+            rndKs(); 
+            rndFn(); 
+            rndMx(); 
+            rndGps(); 
+            rndPrices(); 
+        }
+
+        function loadData() {
+    database.ref(currentUser).once('value')
+    .then(snapshot => {
+        let data = snapshot.val();
+        
+        // Ако има данни - взимаме ги, ако няма - създаваме празен обект/структура
+        db = data || defData();
+        
+        // Гарантираме, че всички нужни структури съществуват
+        db.rows = db.rows || [];
+        db.mtx = db.mtx || {};
+        db.prices = db.prices || {};
+        db.flds = db.flds || { plus: [], minus: [] };
+        db.shps = db.shps || [];
+        db.arts = db.arts || [];
+        db.regions = db.regions || [];
+        db.gpsShops = db.gpsShops || [];
+        db.history = db.history || {};
+        
+        // Извикваме рендирането чак СЛЕД като сме подсигурили данните
+        rnd(); 
+    }).catch((err) => { 
+        console.error("Грешка при зареждане:", err);
+        alert('❌ ГРЕШКА ПРИ ЗАРЕЖДАНЕ: ' + err.message);
+        db = defData(); 
+        rnd(); 
+    });
+}
+
+        function sv() { 
+            database.ref(currentUser).set(db).then(() => { rnd(); }).catch(err => alert('❌ ГРЕШКА: ' + err.message));
+        }
+        
+        function swPg(p, b) { document.querySelectorAll('.page').forEach(x => x.classList.remove('active')); document.querySelectorAll('.nav-item').forEach(x => x.classList.remove('active')); document.getElementById('page-' + p).classList.add('active'); b.classList.add('active'); rnd(); }
+        function svSld() { db.sld = parseInt(document.getElementById('kasi-saldo').value) || 0; sv(); }
+        
+        function adKs() {
+            let o = parseInt(document.getElementById('k-osn').value) || 0, r = parseInt(document.getElementById('k-rch').value) || 0, v = parseInt(document.getElementById('k-vrn').value) || 0;
+            db.rows.push({ d: new Date().toLocaleDateString('bg', {day:'2-digit', month:'2-digit'}), o: o, r: r, v: v });
+            document.getElementById('k-osn').value = ''; document.getElementById('k-rch').value = ''; document.getElementById('k-vrn').value = ''; sv();
+        }
+        function clKs() { if(confirm('Нулиране?')) { db.rows = []; db.sld = 0; sv(); } }
+        
+        function rndKs() {
+    let b = document.getElementById('kasi-tb'); 
+    b.innerHTML = ''; 
+    let s = db.sld || 0;
+    
+    if(db.rows) { 
+        db.rows.forEach(x => { 
+            // Тук добавяме защитата за всяка от променливите
+            s += ((x.o || 0) + (x.r || 0)) - (x.v || 0); 
+            
+            b.innerHTML += `<tr>
+                <td>${x.d}</td>
+                <td>${x.o || 0}</td>
+                <td>${x.r || 0}</td>
+                <td>${x.v || 0}</td>
+                <td style="font-weight:bold; color:${s>0?'red':'green'}">${s}</td>
+            </tr>`; 
+        }); 
+    }
+    document.getElementById('cur-sld').innerText = s;
+}
+
+        function rndFn() {
+            let p = document.getElementById('p-lst'), m = document.getElementById('m-lst'); p.innerHTML = ''; m.innerHTML = '';
+            if(db.flds && db.flds.plus) { db.flds.plus.forEach(x => { p.innerHTML += `<div class="money-row"><button class="del-money-btn" onclick="delFld('plus','${x.id}','${x.l}')">🗑️</button><label>${x.l}</label><input type="number" step="0.01" id="in-plus-${x.id}" value="${x.v||''}" onchange="lclUpFn('plus','${x.id}',this.value)"></div>`; }); }
+            if(db.flds && db.flds.minus) { db.flds.minus.forEach(x => { m.innerHTML += `<div class="money-row"><button class="del-money-btn" onclick="delFld('minus','${x.id}','${x.l}')">🗑️</button><label>${x.l}</label><input type="number" step="0.01" id="in-minus-${x.id}" value="${x.v||''}" onchange="lclUpFn('minus','${x.id}',this.value)"></div>`; }); }
+            calFin(false);
+            rndHistory();
+        }
+
+        function lclUpFn(t, id, v) { let f = db.flds[t].find(x => x.id === id); if(f) f.v = parseFloat(v) || 0; calFin(false); }
+        
+        function svFinAll() { 
+            // 1. Запазваме текущото състояние в Firebase
+            database.ref(`${currentUser}/flds`).set(db.flds)
+            .then(() => {
+                // 2. Създаваме запис за историята с днешна дата и точен час
+                let now = new Date();
+                let dateStr = now.toLocaleDateString('bg-BG') + ' ' + now.toLocaleTimeString('bg-BG', {hour: '2-digit', minute:'2-digit'});
+                let histId = 'h_' + Date.now();
+                
+                let tp = 0, tm = 0; 
+                db.flds.plus.forEach(x => tp += x.v || 0); 
+                db.flds.minus.forEach(x => tm += x.v || 0);
+                let total = (tp - tm).toFixed(2);
+
+                if(!db.history) db.history = {};
+                db.history[histId] = {
+                    date: dateStr,
+                    total: total,
+                    snapshot: JSON.parse(JSON.stringify(db.flds)) // дълбоко копие на парите
+                };
+
+                // Записваме цялата история обратно
+                database.ref(`${currentUser}/history`).set(db.history)
+                .then(() => {
+                    alert(`✅ Отчетът е записан успешно и архивиран за днес!\n💰 Сума: ${total} €`); 
+                    rnd();
+                });
+            })
+            .catch(err => { alert('❌ ГРЕШКА ПРИ ЗАПИС: ' + err.message); }); 
+        }
+
+        function rndHistory() {
+            let container = document.getElementById('archive-list');
+            container.innerHTML = '';
+            if (!db.history || Object.keys(db.history).length === 0) {
+                container.innerHTML = '<p style="color:#64748b; font-size:13px; text-align:center;">Няма записани стари отчети.</p>';
+                return;
+            }
+            // Сортираме ги по ID (най-новите най-отгоре)
+            let sortedKeys = Object.keys(db.history).sort((a,b) => b.localeCompare(a));
+            sortedKeys.forEach(key => {
+                let item = db.history[key];
+                container.innerHTML += `
+                    <div class="archive-item">
+                        <div class="archive-info">📅 ${item.date}<br>💰 Общо: ${item.total} €</div>
+                        <div class="archive-actions">
+                            <button class="archive-btn-load" onclick="loadArchived('${key}')">Преглед</button>
+                            <button class="archive-btn-del" onclick="delArchived('${key}')">🗑️</button>
+                        </div>
+                    </div>`;
+            });
+        }
+
+        function loadArchived(key) {
+            let item = db.history[key];
+            if (confirm(`Искаш ли да заредиш отчета от ${item.date} на екрана? Всички текущи въведени числа ще се заменят със старите.`)) {
+                db.flds = JSON.parse(JSON.stringify(item.snapshot));
+                rndFn();
+                alert('✅ Старият отчет е зареден на екрана. Можеш да го разгледаш или да го преизчислиш!');
+            }
+        }
+
+        function delArchived(key) {
+            if (confirm('Сигурен ли си, че искаш да изтриеш този запис от архива?')) {
+                delete db.history[key];
+                database.ref(`${currentUser}/history/${key}`).remove().then(() => { rnd(); });
+            }
+        }
+
+        function adFld(t) { 
+    let n = prompt('Име на новия ред:'); 
+    if(n) { 
+        db.flds[t].push({id:'f'+Date.now(), l:n+' (€)', v:0}); 
+        sv(); 
+        rnd(); // <--- ТОВА Е ЛИПСВАЩОТО!
+    } 
+}
+        function delFld(t, id, name) { 
+    if(confirm(`Изтриване на ред "${name.replace(' (€)','')}"?`)) { 
+        db.flds[t] = db.flds[t].filter(x => x.id !== id); 
+        sv(); 
+        rnd(); // <--- Добави го и тук!
+    } 
+}
+        
+        function calFin(alertMe=false) {
+            let tp = 0, tm = 0; if(db.flds && db.flds.plus) db.flds.plus.forEach(x => tp += x.v || 0); if(db.flds && db.flds.minus) db.flds.minus.forEach(x => tm += x.v || 0);
+            document.getElementById('fin-tot').innerText = (tp - tm).toFixed(2); if(alertMe) alert('Преизчислено успешно!');
+        }
+        function clFin() { if(confirm('Нулиране на сумите?')) { db.flds.plus.forEach(x => x.v = 0); db.flds.minus.forEach(x => x.v = 0); sv(); } }
+        
+        function copyToViber() {
+            let today = new Date().toLocaleDateString('bg-BG');
+            let text = `📊 *ДНЕВЕН ОТЧЕТ - МИЛЕНА*\n👤 Потребител: ${currentUser.toUpperCase()}\n📅 Дата: ${today}\n\n`;
+            let hasPlus = false; let plusText = `➕ *ПРИХОДИ:*\n`;
+            if(db.flds && db.flds.plus) db.flds.plus.forEach(x => { if(x.v > 0) { plusText += ` • ${x.l.replace(' (€)', '')}: ${x.v.toFixed(2)} €\n`; hasPlus = true; } });
+            if(hasPlus) text += plusText + `\n`;
+            let hasMinus = false; let minusText = `➖ *РАЗХОДИ:*\n`;
+            if(db.flds && db.flds.minus) db.flds.minus.forEach(x => { if(x.v > 0) { minusText += ` • ${x.l.replace(' (€)', '')}: ${x.v.toFixed(2)} €\n`; hasMinus = true; } });
+            if(hasMinus) text += minusText + `\n`;
+            let tp = 0, tm = 0; if(db.flds && db.flds.plus) db.flds.plus.forEach(x => tp += x.v || 0); if(db.flds && db.flds.minus) db.flds.minus.forEach(x => tm += x.v || 0);
+            text += `💰 *ЗА ОТЧИТАНЕ ОБЩО: ${(tp - tm).toFixed(2)} €*`;
+            navigator.clipboard.writeText(text).then(() => { alert('✅ Отчетът е копиран!'); }).catch(() => { alert('Грешка при копиране.'); });
+        }
+
+        function adShp() { 
+    let i = document.getElementById('n-shp');
+    let n = i.value.trim(); 
+    
+    // ПРОВЕРКА: Ако db.shps не съществува или не е масив, го създаваме на момента
+    if (!Array.isArray(db.shps)) {
+        db.shps = [];
+    }
+
+    if(n && !db.shps.includes(n)) { 
+        db.shps.push(n); 
+        i.value = ''; 
+        sv(); 
+        // Добави това, за да се обнови екрана веднага след записа:
+        rnd(); 
+    } 
+}
+       function adArt() { 
+    let i = document.getElementById('n-art');
+    let n = i.value.trim(); 
+    
+    // Същата проверка за сигурност
+    if (!Array.isArray(db.arts)) {
+        db.arts = [];
+    }
+
+    if(n && !db.arts.includes(n)) { 
+        db.arts.push(n); 
+        i.value = ''; 
+        sv(); 
+        rnd(); 
+    } 
+}
+        function delShp(s) { if(confirm(`Изтриване на обект "${s}"?`)) { db.shps = db.shps.filter(x => x !== s); if(db.mtx && db.mtx[s]) delete db.mtx[s]; sv(); } }
+        function delArt(a) { if(confirm(`Изтриване на хляб "${a}"?`)) { db.arts = db.arts.filter(x => x !== a); if(db.shps) db.shps.forEach(s => { if(db.mtx && db.mtx[s]) delete db.mtx[s][a]; }); sv(); } }
+        
+        function lclUpMx(s, a, v) { if(!db.mtx) db.mtx = {}; if(!db.mtx[s]) db.mtx[s] = {}; db.mtx[s][a] = parseInt(v) || 0; rndMxTot(); }
+        
+        function svMtxAll() { 
+            database.ref(`${currentUser}/mtx`).set(db.mtx).then(() => { alert('✅ Всички бройки от района са записани!'); rnd(); }).catch(err => alert('❌ ГРЕШКА: ' + err.message));
+        }
+        
+        function clMtx() { if(confirm('Изчистване на бройките?')) { db.mtx = {}; sv(); } }
+        function delAllRy() { if(confirm('Изтриване на всичко?')) { db.shps = []; db.arts = []; db.mtx = {}; sv(); } }
+        
+        function rndMx() {
+            let t = document.getElementById('m-tx'); t.innerHTML = '';
+            if(!db.shps || db.shps.length === 0 || !db.arts || db.arts.length === 0) { t.innerHTML = '<tr><td style="padding:10px;color:#64748b;">Няма въведени обекти или артикули.</td></tr>'; return; }
+            let headHtml = '<tr><th>Обект</th>' + db.arts.map(x => `<th>${x} <div class="th-del-box" onclick="delArt('${x}')">🗑️ Махни</div></th>`).join('') + '</tr>';
+            t.innerHTML = headHtml;
+            db.shps.forEach(s => { 
+                let row = `<tr><td style="text-align:left;font-weight:bold;white-space:nowrap;"><button class="del-mini" onclick="delShp('${s}')">🗑️</button> ${s}</td>`;
+                row += db.arts.map(a => `<td><input type="number" style="margin:0;padding:5px;text-align:center;" value="${(db.mtx&&db.mtx[s]&&db.mtx[s][a])||''}" placeholder="0" onchange="lclUpMx('${s}','${a}',this.value)"></td>`).join('');
+                t.innerHTML += row + '</tr>';
+            });
+            let h = `<tr class="row-total"><td style="text-align:left;">ОБЩО:</td>`;
+            db.arts.forEach(a => { let tot = 0; db.shps.forEach(s => { tot += (db.mtx && db.mtx[s] && db.mtx[s][a]) || 0; }); h += `<td id="t-a-${btoa(encodeURIComponent(a)).replace(/=/g,'')}">${tot}</td>`; });
+            t.innerHTML += h + '</tr>';
+        }
+        function rndMxTot() { if(!db.arts) return; db.arts.forEach(a => { let tot = 0; if(db.shps) db.shps.forEach(s => { tot += (db.mtx && db.mtx[s] && db.mtx[s][a]) || 0; }); let c = document.getElementById("t-a-" + btoa(encodeURIComponent(a)).replace(/=/g,'')); if(c) c.innerText = tot; }); }
+        
+       function adRegion() { 
+    let i = document.getElementById('n-reg');
+    let v = i.value.trim(); 
+
+    // Защитна проверка: ако db.regions липсва или не е масив, го създаваме
+    if (!Array.isArray(db.regions)) {
+        db.regions = [];
+    }
+
+    if(v && !db.regions.includes(v)) { 
+        db.regions.push(v); 
+        i.value = ''; 
+        sv(); 
+        rnd(); // Това ще обнови списъка с райони веднага
+    } 
+}
+       function adGpsShop() {
+    let r = document.getElementById('sel-reg').value; 
+    let n = document.getElementById('n-gps-shp').value.trim(); 
+    let l = document.getElementById('n-gps-lnk').value.trim();
+    
+    if(!r || !n || !l) { alert('Попълни всички полета!'); return; }
+    
+    // Защитна проверка
+    if (!Array.isArray(db.gpsShops)) {
+        db.gpsShops = [];
+    }
+    
+    db.gpsShops.push({id: 'g'+Date.now(), n:n, r:r, l:l});
+    document.getElementById('n-gps-shp').value = ''; 
+    document.getElementById('n-gps-lnk').value = ''; 
+    sv();
+    rnd(); // Задължително обновяване
+}
+        function delGpsShop(id, name) { if(confirm(`Изтриване на "${name}"?`)) { db.gpsShops = db.gpsShops.filter(x => x.id !== id && x.n !== id); sv(); } }
+        function toggleRegion(id, btn) { let el = document.getElementById(id); if(el.style.display === 'block') { el.style.display = 'none'; btn.classList.remove('open'); } else { el.style.display = 'block'; btn.classList.add('open'); } }
+        function clGps() { if(confirm('Изтриване на всички локации?')) { db.regions = []; db.gpsShops = []; sv(); } }
+        
+        function rndGps() {
+    let sel = document.getElementById('sel-reg');
+    if(db.regions) sel.innerHTML = db.regions.map(x => `<option value="${x}">${x}</option>`).join('');
+    
+    let cont = document.getElementById('regions-container');
+    cont.innerHTML = '';
+    
+    if(!db.regions || db.regions.length === 0) {
+        cont.innerHTML = '<p style="color:#64748b;text-align:center;">Няма райони.</p>';
+        return;
+    }
+    
+    db.regions.forEach((r, idx) => {
+        let rId = 'reg-child-' + idx;
+        
+        let regionBtn = document.createElement('button');
+        regionBtn.className = 'region-btn';
+        regionBtn.innerHTML = `<span>📁 ${r}</span> <span>▼</span>`;
+        regionBtn.onclick = function() { toggleRegion(rId, this); };
+        cont.appendChild(regionBtn);
+        
+        let shopsList = document.createElement('div');
+        shopsList.id = rId;
+        shopsList.className = 'shops-list';
+        
+        let filtShops = db.gpsShops ? db.gpsShops.filter(x => x.r === r) : [];
+        
+        if (filtShops.length === 0) {
+            shopsList.innerHTML = '<p style="padding:10px;color:#94a3b8;font-size:13px;">Няма обекти.</p>';
+        } else {
+            filtShops.forEach(s => {
+                let row = document.createElement('div');
+                row.className = 'shop-row';
+                
+                let link = document.createElement('a');
+                // Това е официалният URL формат за Maps, който iPhone приема
+                link.href = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(s.l);
+                link.target = "_blank";
+                link.className = "shop-location-item";
+                link.innerText = "📍 " + s.n;
+                
+                let btn = document.createElement('button');
+                btn.className = "del-gps-shop";
+                btn.innerText = "🗑️";
+                btn.onclick = function() { delGpsShop(s.id, s.n); };
+                
+                row.appendChild(link);
+                row.appendChild(btn);
+                shopsList.appendChild(row);
+            });
+        }
+        cont.appendChild(shopsList);
+    });
+}
+// Логика за цените
+function rndPrices() {
+    let container = document.getElementById('price-list');
+    if (!container) return; // Ако страницата не е заредена, спираме
+    container.innerHTML = '';
+    
+    // ВАЖНО: Ако db.prices е undefined, работим с празен обект {}
+    let prices = db.prices || {};
+    
+    Object.keys(prices).forEach(artName => {
+        let price = prices[artName];
+        container.innerHTML += `
+            <div class="money-row" style="display:flex; align-items:center; gap:10px; margin-bottom:5px;">
+                <label style="flex:1; font-weight:bold;">${artName}</label>
+                <input type="number" step="0.01" id="price-${artName}" value="${price}" style="width: 80px;">
+                <button onclick="deleteArt('${artName}')" style="background:red; color:white; border:none; padding: 5px 10px; cursor:pointer;">X</button>
+            </div>
+        `;
+    });
+}
+
+function deleteArt(artName) {
+    if (confirm("Сигурен ли си, че искаш да изтриеш: " + artName + "?")) {
+        delete db.prices[artName];
+        sv(); // Записва промените във Firebase и презарежда
+    }
+}
+
+function addNewArt() {
+    let nameInput = document.getElementById('new-art-name');
+    let priceInput = document.getElementById('new-art-price');
+    let name = nameInput.value.trim();
+    let price = parseFloat(priceInput.value);
+
+    // ВАЖНО: Проверка дали name е валиден текст
+    if (name !== "" && !isNaN(price)) {
+        db.prices[name] = price; // Името (текст) е ключ, цената е стойност
+        nameInput.value = '';
+        priceInput.value = '';
+        sv(); // Запис във Firebase
+        rnd(); // Презареждане на интерфейса
+    } else {
+        alert("Моля, въведи коректно име и цена!");
+    }
+}
+
+function savePrices() {
+    Object.keys(db.prices).forEach(artName => {
+        let input = document.getElementById(`price-${artName}`);
+        if (input) {
+            db.prices[artName] = parseFloat(input.value) || 0;
+        }
+    });
+    sv();
+    alert('Цените са записани!');
+}
+
+// Логика за калкулатора
+function openCalc() {
+    let container = document.getElementById('calc-inputs');
+    container.innerHTML = '';
+    Object.keys(db.prices).forEach(art => {
+        container.innerHTML += `
+            <div style="margin-bottom:10px;">
+                <label style="font-size:12px;">${art} (${db.prices[art].toFixed(2)} €)</label>
+                <input type="number" class="calc-qty" data-art="${art}" placeholder="0" oninput="calcTotal()" style="padding:5px; width:100%;">
+            </div>
+        `;
+    });
+    document.getElementById('calc-modal').style.display = 'block';
+}
+
+function calcTotal() {
+    let total = 0;
+    document.querySelectorAll('.calc-qty').forEach(input => {
+        let qty = parseFloat(input.value) || 0;
+        let art = input.getAttribute('data-art');
+        total += qty * (db.prices[art] || 0);
+    });
+    document.getElementById('calc-total').innerText = total.toFixed(2);
+}
+
+// ... (всички функции по-горе) ...
+
+function closeCalc() { document.getElementById('calc-modal').style.display = 'none'; }
+
+// ДОБАВИ ТОВА ТУК, ЗА ДА СЕ СТАРТИРА ВСИЧКО:
+rnd(); 
+</script>
+
+<div id="calc-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:9999; padding:20px; overflow-y:auto;">  
+    <div class="login-card" style="margin: 50px auto;">
+        <h2>Калкулатор товарителница</h2>
+        <div id="calc-inputs" style="text-align:left; margin-bottom:15px;"></div>
+        <div style="font-size:20px; font-weight:bold; margin-bottom:15px;">Общо: <span id="calc-total">0.00</span> €</div>
+        <button onclick="closeCalc()" class="btn-success">Затвори</button>
+    </div>
+</div>
+</body>
+</html>
