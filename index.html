@@ -390,43 +390,79 @@
 
 
         function syncData() {
-            if (!navigator.onLine || !currentUser) return;
-            console.log('[Milena] Засичане на интернет връзка. Автоматично синхронизиране на локалния кеш с Firebase...');
+            // Правим функцията да може да се извика и без currentUser, но ще чака
+            if (!navigator.onLine) {
+                console.log('[Milena] Все още офлайн - синхронизацията ще се изпълни по-късно.');
+                return;
+            }
+            if (!currentUser) {
+                console.log('[Milena] Потребителят все още не е логнат - синхронизацията ще се изпълни по-късно.');
+                return;
+            }
             
-            Promise.all([
-                readCachedUserData(currentUser),
-                getAllUnsyncedReports(currentUser)
-            ])
-            .then(function([cached, unsyncedReports]) {
-                if (cached) {
-                    db = cached;
-                    normalizeDb();
-                    rnd();
+            console.log('[Milena] Стартиране на синхронизация...');
+            
+            // Първо проверяваме дали имаме не синхронизирани отчети
+            getAllUnsyncedReports(currentUser)
+            .then(function(unsyncedReports) {
+                console.log('[Milena] Намерени ' + unsyncedReports.length + ' не синхронизирани отчета.');
+                
+                if (unsyncedReports.length === 0) {
+                    console.log('[Milena] Няма не синхронизирани отчети - спираме синхронизацията.');
+                    return;
                 }
                 
-                // Първо качваме цялата база данни
-                return rtdbSet(dbRef(currentUser), db)
-                .then(function() {
-                    console.log('[Milena] ✅ Локалните данни бяха успешно синхронизирани с Firebase сървъра.');
+                // Зареждаме пълните данни от кеша
+                return readCachedUserData(currentUser)
+                .then(function(cached) {
+                    if (cached) {
+                        db = cached;
+                        normalizeDb();
+                        rnd();
+                    }
                     
-                    // След това изтриваме не синхронизираните отчети, тъй като вече са в Firebase
-                    const deletePromises = unsyncedReports.map(report => deleteUnsyncedReport(report.id));
-                    return Promise.all(deletePromises);
+                    // Качваме данните във Firebase
+                    console.log('[Milena] Качване на данни във Firebase...');
+                    return rtdbSet(dbRef(currentUser), db)
+                    .then(function() {
+                        console.log('[Milena] ✅ Данните са качени успешно във Firebase!');
+                        
+                        // Изтриваме отчетите един по един
+                        console.log('[Milena] Изтриване на ' + unsyncedReports.length + ' отчета от локалния кеш...');
+                        const deletePromises = unsyncedReports.map(function(report) {
+                            console.log('[Milena] Изтриване на отчет с ID: ' + report.id);
+                            return deleteUnsyncedReport(report.id);
+                        });
+                        
+                        return Promise.all(deletePromises);
+                    });
+                })
+                .then(function() {
+                    console.log('[Milena] ✅ Всички не синхронизирани отчети са обработени и изтрити!');
                 });
             })
-            .then(function() {
-                console.log('[Milena] ✅ Всички не синхронизирани отчети са обработени.');
-            })
             .catch(function(err) {
-                console.error('[Milena] ❌ Грешка при автоматичната синхронизация:', err);
+                console.error('[Milena] ❌ Грешка при синхронизация:', err);
+                // Опитваме се отново след 5 секунди
+                console.log('[Milena] Опитваме се отново след 5 секунди...');
+                setTimeout(syncData, 5000);
             });
         }
 
         window.addEventListener('online', function() {
             updateConnStatus();
+            console.log('[Milena] Връзката се възстанови - синхронизиране...');
             syncData();
         });
         window.addEventListener('offline', updateConnStatus);
+
+        // Слушател за зареждане на страницата
+        window.addEventListener('load', function() {
+            console.log('[Milena] Страницата е заредена - проверка за синхронизация...');
+            if (navigator.onLine && currentUser) {
+                syncData();
+            }
+        });
 
         whenDbReady(function() {
             onValue(dbRef('.info/connected'), function() {
@@ -511,6 +547,14 @@
         document.getElementById('login-screen').style.display = 'none';
         document.getElementById('user-title').innerText = currentUser.toUpperCase();
         loadData();
+        // Веднага след логин, ако сме онлайн - синхронизираме
+        if (navigator.onLine) {
+            console.log('[Milena] Потребителят е логнат и сме онлайн - синхронизиране...');
+            // Изчакваме данните да се заредят, после синхронизираме
+            setTimeout(function() {
+                syncData();
+            }, 2000);
+        }
     } else { 
         alert('Грешна парола!'); 
     }
