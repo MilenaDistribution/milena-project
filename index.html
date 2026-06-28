@@ -343,7 +343,20 @@ const PASSWORDS = {
             db.rows.push({ d: new Date().toLocaleDateString('bg', {day:'2-digit', month:'2-digit'}), o: o, r: r, v: v });
             document.getElementById('k-osn').value = ''; document.getElementById('k-rch').value = ''; document.getElementById('k-vrn').value = ''; sv();
         }
-        function clKs() { if(confirm('Нулиране?')) { db.rows = []; db.sld = 0; sv(); } }
+        function clKs() { 
+    // Изискване на парола
+    let pass = prompt("Въведи парола за нулиране на касите:");
+    if (pass !== "123456") { // Промени "123456" с твоята парола
+        alert("Грешна парола!");
+        return;
+    }
+
+    if(confirm('Сигурен ли си, че искаш да нулираш касите?')) { 
+        db.rows = []; 
+        db.sld = 0; 
+        sv(); 
+    } 
+}
         
         function rndKs() {
     let b = document.getElementById('kasi-tb'); 
