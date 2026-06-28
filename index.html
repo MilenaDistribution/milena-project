@@ -433,6 +433,11 @@
                 updateConnStatus();
             });
             updateConnStatus();
+            
+            // Проверка за не синхронизирани отчети при стартиране на приложението
+            if (navigator.onLine) {
+                console.log('[Milena] Приложението е онлайн при стартиране - ще се провери за не синхронизирани отчети след логин.');
+            }
         });
 
         window.rtdb = rtdb;
@@ -614,16 +619,23 @@
             }
         })
         .catch(function(err) {
-            console.warn('[Milena] Неуспешно зареждане от Firebase сървъра (вероятно офлайн):', err);
-            // При грешка/офлайн, ако все още нямаме заредени данни (кешът е бил празен), зареждаме дефолтни
-            if (!db || Object.keys(db).length === 0) {
-                db = defData();
-                normalizeDb();
-                rnd();
-            }
+                console.warn('[Milena] Неуспешно зареждане от Firebase сървъра (вероятно офлайн):', err);
+                // При грешка/офлайн, ако все още нямаме заредени данни (кешът е бил празен), зареждаме дефолтни
+                if (!db || Object.keys(db).length === 0) {
+                    db = defData();
+                    normalizeDb();
+                    rnd();
+                }
+            })
+            .finally(function() {
+                // Ако сме онлайн, синхронизираме не синхронизираните отчети веднага
+                if (navigator.onLine && currentUser) {
+                    console.log('[Milena] Проверка и синхронизация на не синхронизирани отчети...');
+                    syncData();
+                }
+            });
         });
-    });
-}
+    }
 
         function sv() { 
             if (!currentUser) return;
