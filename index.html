@@ -655,34 +655,25 @@ let row = `<tr><td style="text-align:left;font-weight:bold;white-space:nowrap;">
     document.getElementById('n-gps-lnk').value = ''; 
     sv();
     rnd(); // Задължително обновяване
-    function moveShp(shopName, direction) {
+   // Постави тази функция чисто в края, преди </script>
+function moveShp(encodedName, direction) {
+    let shopName = decodeURIComponent(atob(encodedName));
     let index = db.shps.indexOf(shopName);
-    
-    // Ако не намери обекта, спираме
     if (index === -1) return;
-    
     let newIndex = index + direction;
-    
-    // Проверка за границите на масива
     if (newIndex < 0 || newIndex >= db.shps.length) return;
     
-    // Размяна на елементите
     let temp = db.shps[index];
     db.shps[index] = db.shps[newIndex];
     db.shps[newIndex] = temp;
     
-    // ТЪЙ КАТО ТУК ПРОМЕНЯМЕ И МАТРИЦАТА (mtx), НЕКА Я ОБНОВИМ
-    // Това ще пренареди и данните в матрицата (ако има записани бройки)
     if (db.mtx) {
-        let tempMtx = db.mtx[db.shps[index]];
-        db.mtx[db.shps[index]] = db.mtx[db.shps[newIndex]];
-        db.mtx[db.shps[newIndex]] = tempMtx;
+        let oldName = temp;
+        let newName = db.shps[index];
+        let tempMtx = db.mtx[oldName];
+        db.mtx[oldName] = db.mtx[newName];
+        db.mtx[newName] = tempMtx;
     }
-    
-    sv(); 
-    rnd(); 
-}
-    
     sv(); 
     rnd(); 
 }
