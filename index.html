@@ -67,27 +67,24 @@
         .archive-actions { display: flex; gap: 5px; }
         .archive-btn-load { background: #0284c7; color: white; padding: 5px 10px; border: none; border-radius: 6px; font-size: 12px; cursor: pointer; width: auto; }
         .archive-btn-del { background: #ef4444; color: white; padding: 5px 8px; border: none; border-radius: 6px; font-size: 12px; cursor: pointer; width: auto; }
+
+        #conn-status { position: fixed; top: 8px; left: 8px; width: 12px; height: 12px; border-radius: 50%; z-index: 10000; border: 2px solid white; box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
+        #conn-status.online { background: #16a34a; }
+        #conn-status.offline { background: #dc2626; }
     </style>
 </head>
 <body>
-    <div id="login-screen" style="display: flex; flex-direction: column; align-items: center;">
-    <h3>Вход в системата</h3>
-    
-    <select id="user-select" onchange="showPassArea()" style="padding: 10px; margin-bottom: 15px; width: 200px;">
-        <option value="" disabled selected>Избери потребител...</option>
-        <option value="martin">МАРТИН</option>
-        <option value="stoyan">СТОЯН</option>
-        <option value="ivan">ИВАН</option>
-        
-    </select>
-
-    <div id="pass-area" style="display: none;">
-        <input type="password" id="user-pass" placeholder="Въведи лична парола:" style="padding: 10px; margin-bottom: 10px;">
-        <br>
-        <button onclick="login()" class="btn-success">Влез</button>
-    </div>
-</div>
-            <div id="pass-area" style="display:none;">
+    <div id="conn-status" class="online" title="Онлайн"></div>
+    <div id="login-screen" style="display: flex; flex-direction: column; align-items: center; justify-content: center;">
+        <div class="login-card">
+            <h3>Вход в системата</h3>
+            <select id="user-select" onchange="showPassArea()" style="padding: 10px; margin-bottom: 15px; width: 100%;">
+                <option value="" disabled selected>Избери потребител...</option>
+                <option value="martin">МАРТИН</option>
+                <option value="stoyan">СТОЯН</option>
+                <option value="ivan">ИВАН</option>
+            </select>
+            <div id="pass-area" style="display: none;">
                 <label>Въведи лична парола:</label>
                 <input type="password" id="user-pass" placeholder="••••" style="text-align:center; font-size:22px; letter-spacing:5px;">
                 <button onclick="login()" class="btn-success" style="padding:14px;">Влез</button>
@@ -216,25 +213,39 @@
 </div>
 
     <script>
+        let currentUser = "";
+        let db = {};
+        let isCeniUnlocked = false;
+        let mtxSaveTimer = null;
+
+        const PASSWORDS = {
+            martin: "1212",
+            stoyan: "2222",
+            ivan: "12345678"
+        };
+
         const firebaseConfig = {
             databaseURL: "https://milena-hlqb-default-rtdb.europe-west1.firebasedatabase.app"
         };
         firebase.initializeApp(firebaseConfig);
         const database = firebase.database();
 
-        // Старият вариант:
-// const PASSWORDS = { martin: "1111", stoyan: "2222" };
+        if (location.protocol !== 'file:' && typeof firebase.database().enablePersistence === 'function') {
+            firebase.database().enablePersistence().catch(function(err) {
+                console.warn('Offline persistence:', err.code);
+            });
+        }
 
-// Новият вариант:
-const PASSWORDS = { 
-    martin: "1212", 
-    stoyan: "2222", 
-    ivan: "12345678"
-
-};
-        let currentUser = "";
-        let db = {};
-        let isCeniUnlocked = false;
+        function updateConnStatus() {
+            let el = document.getElementById('conn-status');
+            if (!el) return;
+            let online = navigator.onLine;
+            el.className = online ? 'online' : 'offline';
+            el.title = online ? 'Онлайн' : 'Офлайн';
+        }
+        window.addEventListener('online', updateConnStatus);
+        window.addEventListener('offline', updateConnStatus);
+        updateConnStatus();
 
         function selUsr(u) {
             currentUser = u;
@@ -260,6 +271,10 @@ const PASSWORDS = {
 }
 
         function login() {
+    if (!currentUser) {
+        alert('Моля, изберете потребител!');
+        return;
+    }
     let p = document.getElementById('user-pass').value;
     if (p === PASSWORDS[currentUser]) {
         document.getElementById('login-screen').style.display = 'none';
@@ -271,7 +286,17 @@ const PASSWORDS = {
 }
 
         function logout() { 
+    if (mtxSaveTimer) {
+        clearTimeout(mtxSaveTimer);
+        mtxSaveTimer = null;
+        if (currentUser && db.mtx) {
+            database.ref(`${currentUser}/mtx`).set(db.mtx);
+        }
+    }
     document.getElementById('login-screen').style.display = 'flex'; 
+    document.getElementById('user-select').selectedIndex = 0;
+    document.getElementById('pass-area').style.display = 'none';
+    document.getElementById('user-pass').value = '';
     currentUser = ""; 
     db = {}; 
     isCeniUnlocked = false; // Заключваме обратно
@@ -501,9 +526,16 @@ const PASSWORDS = {
 }
 function showPassArea() {
     let select = document.getElementById('user-select');
-    currentUser = select.value; // Взима името от избрания вариант
-    document.getElementById('pass-area').style.display = 'block';
-    document.getElementById('user-pass').value = ''; // Изчиства паролата при смяна
+    currentUser = select.value || '';
+    let passArea = document.getElementById('pass-area');
+    if (!currentUser) {
+        passArea.style.display = 'none';
+        return;
+    }
+    passArea.style.display = 'block';
+    let passInput = document.getElementById('user-pass');
+    passInput.value = '';
+    passInput.focus();
 }
         
         function calFin(alertMe=false) {
@@ -582,11 +614,44 @@ function showPassArea() {
     } 
 }
         
-        function lclUpMx(s, a, v) { if(!db.mtx) db.mtx = {}; if(!db.mtx[s]) db.mtx[s] = {}; db.mtx[s][a] = parseInt(v) || 0; rndMxTot(); }
-        
-        function svMtxAll() { 
-            database.ref(`${currentUser}/mtx`).set(db.mtx).then(() => { alert('✅ Всички бройки от района са записани!'); rnd(); }).catch(err => alert('❌ ГРЕШКА: ' + err.message));
+        function lclUpMx(s, a, v) {
+            if(!db.mtx) db.mtx = {};
+            if(!db.mtx[s]) db.mtx[s] = {};
+            db.mtx[s][a] = parseInt(v) || 0;
+            rndMxTot();
+            scheduleMtxSave();
         }
+
+        function scheduleMtxSave() {
+            if (!currentUser) return;
+            clearTimeout(mtxSaveTimer);
+            mtxSaveTimer = setTimeout(function() { svMtxAll(true); }, 1000);
+        }
+
+        function svMtxAll(silent) {
+            if (!currentUser) return;
+            clearTimeout(mtxSaveTimer);
+            mtxSaveTimer = null;
+            database.ref(`${currentUser}/mtx`).set(db.mtx)
+                .then(function() {
+                    if (!silent) {
+                        alert('✅ Всички бройки от района са записани!');
+                        rnd();
+                    }
+                })
+                .catch(function(err) {
+                    if (!silent) alert('❌ ГРЕШКА: ' + err.message);
+                    else console.error('Auto-save mtx:', err.message);
+                });
+        }
+
+        window.addEventListener('beforeunload', function() {
+            if (mtxSaveTimer && currentUser) {
+                clearTimeout(mtxSaveTimer);
+                mtxSaveTimer = null;
+                database.ref(`${currentUser}/mtx`).set(db.mtx);
+            }
+        });
         
         function clMtx() { 
     // Изискване на парола
