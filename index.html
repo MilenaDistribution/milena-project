@@ -234,6 +234,7 @@ const PASSWORDS = {
 };
         let currentUser = "";
         let db = {};
+        let isCeniUnlocked = false;
 
         function selUsr(u) {
             currentUser = u;
@@ -254,7 +255,12 @@ const PASSWORDS = {
     }
 }
 
-        function logout() { document.getElementById('login-screen').style.display = 'flex'; currentUser = ""; db = {}; }
+        function logout() { 
+    document.getElementById('login-screen').style.display = 'flex'; 
+    currentUser = ""; 
+    db = {}; 
+    isCeniUnlocked = false; // Заключваме обратно
+}
 
       function defData() {
     return {
@@ -312,7 +318,24 @@ const PASSWORDS = {
             database.ref(currentUser).set(db).then(() => { rnd(); }).catch(err => alert('❌ ГРЕШКА: ' + err.message));
         }
         
-        function swPg(p, b) { document.querySelectorAll('.page').forEach(x => x.classList.remove('active')); document.querySelectorAll('.nav-item').forEach(x => x.classList.remove('active')); document.getElementById('page-' + p).classList.add('active'); b.classList.add('active'); rnd(); }
+        function swPg(p, b) {
+    // Проверка за таб "цени"
+    if (p === 'ceni' && !isCeniUnlocked) {
+        let pass = prompt("Въведи парола за достъп до цените:");
+        if (pass === "123456") { // Твоята обща парола тук
+            isCeniUnlocked = true;
+        } else {
+            alert("Грешна парола!");
+            return; // Спираме изпълнението, ако паролата е грешна
+        }
+    }
+
+    document.querySelectorAll('.page').forEach(x => x.classList.remove('active'));
+    document.querySelectorAll('.nav-item').forEach(x => x.classList.remove('active'));
+    document.getElementById('page-' + p).classList.add('active');
+    b.classList.add('active');
+    rnd();
+}
         function svSld() { db.sld = parseInt(document.getElementById('kasi-saldo').value) || 0; sv(); }
         
         function adKs() {
