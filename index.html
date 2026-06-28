@@ -70,21 +70,20 @@
     </style>
 </head>
 <body>
-    <div id="login-screen" style="display: flex; flex-direction: column; align-items: center;">
-    <h3>Вход в системата</h3>
+    <div id="login-screen" style="position: fixed; top:0; left:0; width:100%; height:100%; background:#0f172a; display:flex; flex-direction:column; justify-content:center; align-items:center; z-index:9999; padding:20px;">
+    <h3 style="color: white; margin-bottom: 20px;">Вход в системата</h3>
     
-    <select id="user-select" onchange="showPassArea()" style="padding: 10px; margin-bottom: 15px; width: 200px;">
+    <select id="user-select" onchange="showPassArea()" style="padding: 12px; margin-bottom: 15px; width: 250px; border-radius: 8px;">
         <option value="" disabled selected>Избери потребител...</option>
         <option value="martin">МАРТИН</option>
         <option value="stoyan">СТОЯН</option>
         <option value="ivan">ИВАН</option>
-        
     </select>
 
-    <div id="pass-area" style="display: none;">
-        <input type="password" id="user-pass" placeholder="Въведи лична парола:" style="padding: 10px; margin-bottom: 10px;">
+    <div id="pass-area" style="display: none; text-align: center;">
+        <input type="password" id="user-pass" placeholder="Въведи парола" style="padding: 12px; margin-bottom: 15px; width: 250px; border-radius: 8px; border: none;">
         <br>
-        <button onclick="login()" class="btn-success">Влез</button>
+        <button onclick="login()" class="btn-success" style="width: 250px; padding: 12px;">Влез</button>
     </div>
 </div>
             <div id="pass-area" style="display:none;">
@@ -486,9 +485,11 @@ const PASSWORDS = {
 }
 function showPassArea() {
     let select = document.getElementById('user-select');
-    currentUser = select.value; // Взима името от избрания вариант
-    document.getElementById('pass-area').style.display = 'block';
-    document.getElementById('user-pass').value = ''; // Изчиства паролата при смяна
+    if (select.value) {
+        currentUser = select.value; // Задаваме кой е потребителят
+        document.getElementById('pass-area').style.display = 'block';
+        document.getElementById('user-pass').value = ''; // Изчистваме предишната парола
+    }
 }
         
         function calFin(alertMe=false) {
@@ -677,6 +678,10 @@ let row = `<tr><td style="text-align:left;font-weight:bold;white-space:nowrap;">
         db.mtx[db.shps[index]] = db.mtx[db.shps[newIndex]];
         db.mtx[db.shps[newIndex]] = tempMtx;
     }
+    
+    sv(); 
+    rnd(); 
+}
     
     sv(); 
     rnd(); 
