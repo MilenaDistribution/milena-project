@@ -110,6 +110,18 @@
         <!-- КАСИ -->
         <div id="page-kasi" class="page active">
             <div class="card">
+                <button id="voice-btn" style="background: #e11d48; color: white; padding: 10px; border-radius: 8px; border: none; margin-bottom: 10px; font-weight: bold; width: 100%;">
+            🎤 ГЛАСОВА КОМАНДА
+        </button>
+        <p id="voice-status" style="font-size: 11px; color: #64748b; text-align: center; margin-bottom: 10px;"></p>
+        
+        <div class="inline-inputs">
+            <input type="number" id="kasi-saldo" placeholder="Каси задължение">
+            <button onclick="svSld()" class="btn-success" style="width:100px;">Запиши</button>
+        </div>
+        <p style="font-size:12px; color:#64748b; margin-top:5px;">Текущо салдо: <strong id="cur-sld">0</strong> каси.</p>
+    </div>
+    </div>
                 <h2>Начално салдо за месеца</h2>
                 <div class="inline-inputs">
                     <input type="number" id="kasi-saldo" placeholder="Каси задължение">
@@ -854,7 +866,46 @@ function calcTotal() {
 
 function closeCalc() { document.getElementById('calc-modal').style.display = 'none'; }
 
-// ДОБАВИ ТОВА ТУК, ЗА ДА СЕ СТАРТИРА ВСИЧКО:
+// --- ЛОГИКА ЗА ГЛАСОВИ КОМАНДИ ---
+const voiceBtn = document.getElementById('voice-btn');
+const status = document.getElementById('voice-status');
+
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+if (SpeechRecognition) {
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'bg-BG';
+    recognition.continuous = false;
+
+    voiceBtn.onclick = () => {
+        recognition.start();
+        status.innerText = "🎤 Слушам те...";
+        voiceBtn.style.background = "#991b1b"; // Променя се при запис
+    };
+
+    recognition.onresult = (event) => {
+        const transcript = event.results[0][0].transcript.toLowerCase();
+        status.innerText = "Ти каза: " + transcript;
+        voiceBtn.style.background = "#e11d48"; // Връща се в нормален цвят
+        
+        processVoiceCommand(transcript);
+    };
+
+    recognition.onerror = () => {
+        status.innerText = "Грешка при слушане.";
+        voiceBtn.style.background = "#e11d48";
+    };
+} else {
+    voiceBtn.style.display = 'none';
+}
+
+function processVoiceCommand(text) {
+    // ТУК ще напишем "интелекта"
+    // Пример за проба:
+    if (text.includes("запиши")) {
+        alert("Разбрах: " + text + ". Сега ще се научим да го обработваме!");
+    }
+}
 rnd(); 
 </script>
 
