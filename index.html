@@ -243,6 +243,21 @@ const PASSWORDS = {
             document.getElementById('pass-area').style.display = 'block';
             document.getElementById('user-pass').value = '';
         }
+        function moveShop(index, direction) {
+    // direction: -1 за нагоре, 1 за надолу
+    const newIndex = index + direction;
+    
+    // Проверка дали новият индекс е валиден
+    if (newIndex >= 0 && newIndex < db.shps.length) {
+        // Разменяме местата на елементите в масива
+        const temp = db.shps[index];
+        db.shps[index] = db.shps[newIndex];
+        db.shps[newIndex] = temp;
+        
+        sv(); // Записваме променената подредба във Firebase
+        rnd(); // Презареждаме, за да видим новия ред
+    }
+}
 
         function login() {
     let p = document.getElementById('user-pass').value;
@@ -599,19 +614,38 @@ function showPassArea() {
 }
         
         function rndMx() {
-            let t = document.getElementById('m-tx'); t.innerHTML = '';
-            if(!db.shps || db.shps.length === 0 || !db.arts || db.arts.length === 0) { t.innerHTML = '<tr><td style="padding:10px;color:#64748b;">Няма въведени обекти или артикули.</td></tr>'; return; }
-            let headHtml = '<tr><th>Обект</th>' + db.arts.map(x => `<th>${x} <div class="th-del-box" onclick="delArt('${x}')">🗑️ Махни</div></th>`).join('') + '</tr>';
-            t.innerHTML = headHtml;
-            db.shps.forEach(s => { 
-                let row = `<tr><td style="text-align:left;font-weight:bold;white-space:nowrap;"><button class="del-mini" onclick="delShp('${s}')">🗑️</button> ${s}</td>`;
-                row += db.arts.map(a => `<td><input type="number" style="margin:0;padding:5px;text-align:center;" value="${(db.mtx&&db.mtx[s]&&db.mtx[s][a])||''}" placeholder="0" onchange="lclUpMx('${s}','${a}',this.value)"></td>`).join('');
-                t.innerHTML += row + '</tr>';
-            });
-            let h = `<tr class="row-total"><td style="text-align:left;">ОБЩО:</td>`;
-            db.arts.forEach(a => { let tot = 0; db.shps.forEach(s => { tot += (db.mtx && db.mtx[s] && db.mtx[s][a]) || 0; }); h += `<td id="t-a-${btoa(encodeURIComponent(a)).replace(/=/g,'')}">${tot}</td>`; });
-            t.innerHTML += h + '</tr>';
-        }
+    let t = document.getElementById('m-tx'); 
+    t.innerHTML = '';
+    
+    if(!db.shps || db.shps.length === 0 || !db.arts || db.arts.length === 0) { 
+        t.innerHTML = '<tr><td style="padding:10px;color:#64748b;">Няма въведени обекти или артикули.</td></tr>'; 
+        return; 
+    }
+    
+    let headHtml = '<tr><th>Обект</th>' + db.arts.map(x => `<th>${x} <div class="th-del-box" onclick="delArt('${x}')">🗑️ Махни</div></th>`).join('') + '</tr>';
+    t.innerHTML = headHtml;
+    
+    // ВАЖНО: Добавяме ", index" тук, за да знаем кой ред преместваме
+    db.shps.forEach((s, index) => { 
+        let row = `<tr><td style="text-align:left;font-weight:bold;white-space:nowrap;">
+            <button class="del-mini" onclick="delShp('${s}')">🗑️</button>
+            <button class="del-mini" onclick="moveShop(${index}, -1)" style="color:blue;">▲</button>
+            <button class="del-mini" onclick="moveShop(${index}, 1)" style="color:blue;">▼</button>
+            ${s}
+        </td>`;
+        
+        row += db.arts.map(a => `<td><input type="number" style="margin:0;padding:5px;text-align:center;" value="${(db.mtx&&db.mtx[s]&&db.mtx[s][a])||''}" placeholder="0" onchange="lclUpMx('${s}','${a}',this.value)"></td>`).join('');
+        t.innerHTML += row + '</tr>';
+    });
+    
+    let h = `<tr class="row-total"><td style="text-align:left;">ОБЩО:</td>`;
+    db.arts.forEach(a => { 
+        let tot = 0; 
+        db.shps.forEach(s => { tot += (db.mtx && db.mtx[s] && db.mtx[s][a]) || 0; }); 
+        h += `<td id="t-a-${btoa(encodeURIComponent(a)).replace(/=/g,'')}">${tot}</td>`; 
+    });
+    t.innerHTML += h + '</tr>';
+}
         function rndMxTot() { if(!db.arts) return; db.arts.forEach(a => { let tot = 0; if(db.shps) db.shps.forEach(s => { tot += (db.mtx && db.mtx[s] && db.mtx[s][a]) || 0; }); let c = document.getElementById("t-a-" + btoa(encodeURIComponent(a)).replace(/=/g,'')); if(c) c.innerText = tot; }); }
         
        function adRegion() { 
