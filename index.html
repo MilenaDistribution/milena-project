@@ -70,14 +70,22 @@
     </style>
 </head>
 <body>
-    <div id="login-screen">
-        <div class="login-card">
-            <h2 style="border:none; color:#0369a1; font-size:20px; margin-bottom:20px;">Вход в системата</h2>
-            <div class="user-selector">
-    <button class="user-btn" id="btn-martin" onclick="selUsr('martin')">МАРТИН</button>
-    <button class="user-btn" id="btn-stoyan" onclick="selUsr('stoyan')">СТОЯН</button>
-    <button class="user-btn" id="btn-ivan" onclick="selUsr('ivan')">ИВАН</button>
-    <button class="user-btn" id="btn-hristo" onclick="selUsr('hristo')">Христо</button>
+    <div id="login-screen" style="display: flex; flex-direction: column; align-items: center;">
+    <h3>Вход в системата</h3>
+    
+    <select id="user-select" onchange="showPassArea()" style="padding: 10px; margin-bottom: 15px; width: 200px;">
+        <option value="" disabled selected>Избери потребител...</option>
+        <option value="martin">МАРТИН</option>
+        <option value="stoyan">СТОЯН</option>
+        <option value="ivan">ИВАН</option>
+        <option value="hristo">ХРИСТО</option>
+    </select>
+
+    <div id="pass-area" style="display: none;">
+        <input type="password" id="user-pass" placeholder="Въведи лична парола:" style="padding: 10px; margin-bottom: 10px;">
+        <br>
+        <button onclick="login()" class="btn-success">Влез</button>
+    </div>
 </div>
             <div id="pass-area" style="display:none;">
                 <label>Въведи лична парола:</label>
@@ -236,13 +244,15 @@ const PASSWORDS = {
         }
 
         function login() {
-            let p = document.getElementById('user-pass').value;
-            if (p === PASSWORDS[currentUser]) {
-                document.getElementById('login-screen').style.display = 'none';
-                document.getElementById('user-title').innerText = currentUser.toUpperCase();
-                loadData();
-            } else { alert('Грешна парола!'); }
-        }
+    let p = document.getElementById('user-pass').value;
+    if (p === PASSWORDS[currentUser]) {
+        document.getElementById('login-screen').style.display = 'none';
+        document.getElementById('user-title').innerText = currentUser.toUpperCase();
+        loadData();
+    } else { 
+        alert('Грешна парола!'); 
+    }
+}
 
         function logout() { document.getElementById('login-screen').style.display = 'flex'; currentUser = ""; db = {}; }
 
@@ -427,6 +437,12 @@ const PASSWORDS = {
         sv(); 
         rnd(); // <--- Добави го и тук!
     } 
+}
+function showPassArea() {
+    let select = document.getElementById('user-select');
+    currentUser = select.value; // Взима името от избрания вариант
+    document.getElementById('pass-area').style.display = 'block';
+    document.getElementById('user-pass').value = ''; // Изчиства паролата при смяна
 }
         
         function calFin(alertMe=false) {
