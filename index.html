@@ -623,7 +623,21 @@ function showPassArea() {
     sv();
     rnd(); // Задължително обновяване
 }
-        function delGpsShop(id, name) { if(confirm(`Изтриване на "${name}"?`)) { db.gpsShops = db.gpsShops.filter(x => x.id !== id && x.n !== id); sv(); } }
+        function delGpsShop(id, name) {
+    // Изискване на парола преди изтриване
+    let pass = prompt("Въведи парола за изтриване на локация:");
+    if (pass !== "123456") {
+        alert("Грешна парола!");
+        return;
+    }
+
+    if (confirm(`Изтриване на "${name}"?`)) {
+        db.gpsShops = db.gpsShops.filter(x => x.id !== id && x.n !== id);
+        sv();
+        // Добавяме rnd(), за да се скрие изтритият елемент веднага
+        rnd(); 
+    }
+}
         function toggleRegion(id, btn) { let el = document.getElementById(id); if(el.style.display === 'block') { el.style.display = 'none'; btn.classList.remove('open'); } else { el.style.display = 'block'; btn.classList.add('open'); } }
         function clGps() { if(confirm('Изтриване на всички локации?')) { db.regions = []; db.gpsShops = []; sv(); } }
         
