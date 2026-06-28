@@ -573,7 +573,19 @@ function showPassArea() {
             database.ref(`${currentUser}/mtx`).set(db.mtx).then(() => { alert('✅ Всички бройки от района са записани!'); rnd(); }).catch(err => alert('❌ ГРЕШКА: ' + err.message));
         }
         
-        function clMtx() { if(confirm('Изчистване на бройките?')) { db.mtx = {}; sv(); } }
+        function clMtx() { 
+    // Изискване на парола
+    let pass = prompt("Въведи парола за изчистване на бройките:");
+    if (pass !== "981212") { // Промени "123456" с твоята парола
+        alert("Грешна парола!");
+        return;
+    }
+
+    if(confirm('Сигурен ли си, че искаш да изчистиш всички бройки?')) { 
+        db.mtx = {}; 
+        sv(); 
+    } 
+}
         function delAllRy() { 
     let pass = prompt("Въведи парола за изтриване на целия район:");
     if (pass !== "981212") { alert("Грешна парола!"); return; }
