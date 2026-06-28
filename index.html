@@ -440,11 +440,21 @@ const PASSWORDS = {
         }
 
         function delArchived(key) {
-            if (confirm('Сигурен ли си, че искаш да изтриеш този запис от архива?')) {
-                delete db.history[key];
-                database.ref(`${currentUser}/history/${key}`).remove().then(() => { rnd(); });
-            }
-        }
+    // Проверка за парола
+    let pass = prompt("Въведи парола за изтриване на отчет от архива:");
+    if (pass !== "981212") { // Използваме същата парола като при Цени
+        alert("Грешна парола!");
+        return;
+    }
+
+    if (confirm('Сигурен ли си, че искаш да изтриеш този запис от архива?')) {
+        delete db.history[key];
+        database.ref(`${currentUser}/history/${key}`).remove().then(() => { 
+            rnd(); 
+            alert('✅ Отчетът е изтрит успешно.');
+        });
+    }
+}
 
         function adFld(t) { 
     let n = prompt('Име на новия ред:'); 
