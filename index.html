@@ -7,9 +7,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Фирма Милена - Дистрибуция</title>
     
-    <!-- Включване на официалните библиотеки на Firebase -->
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <!-- Firebase Modular SDK v12 – ES modules (виж <script type="module"> по-долу) -->
 
     <style>
         :root { --primary: #0284c7; --accent: #16a34a; --danger: #dc2626; --bg: #f8fafc; --card: #ffffff; --text: #0f172a; }
@@ -212,6 +210,136 @@
     </div>
 </div>
 
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.8.0/firebase-app.js';
+        import { getDatabase, ref, get, set, remove, onValue } from 'https://www.gstatic.com/firebasejs/12.8.0/firebase-database.js';
+
+        const firebaseConfig = {
+            databaseURL: "https://milena-hlqb-default-rtdb.europe-west1.firebasedatabase.app"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const rtdb = getDatabase(app);
+
+        let persistenceActive = false;
+        let idbDb = null;
+
+        function dbRef(path) {
+            return ref(rtdb, path);
+        }
+
+        function initIndexedDbPersistence() {
+            return new Promise(function(resolve, reject) {
+                if (!window.indexedDB) {
+                    reject(Object.assign(new Error('IndexedDB не се поддържа'), { code: 'unimplemented' }));
+                    return;
+                }
+                console.log('[Milena] Стартиране на enableIndexedDbPersistence (локален IndexedDB кеш за RTDB)...');
+                const request = indexedDB.open('milena-rtdb-offline', 1);
+                request.onerror = function() { reject(request.error); };
+                request.onupgradeneeded = function(e) {
+                    e.target.result.createObjectStore('users', { keyPath: 'userId' });
+                };
+                request.onsuccess = function() {
+                    idbDb = request.result;
+                    resolve(idbDb);
+                };
+            });
+        }
+
+        function enableIndexedDbPersistence() {
+            return initIndexedDbPersistence()
+                .then(function() {
+                    persistenceActive = true;
+                    console.log('[Milena] ✅ enableIndexedDbPersistence: IndexedDB кешът е активен.');
+                    console.info(
+                        '[Milena] Забележка: официалният enableIndexedDbPersistence() от firebase/firestore',
+                        'работи само с Cloud Firestore. Това приложение използва Realtime Database',
+                        'и локален IndexedDB кеш със същия offline модел.'
+                    );
+                    return true;
+                })
+                .catch(function(err) {
+                    persistenceActive = false;
+                    if (err.code === 'failed-precondition') {
+                        console.error(
+                            '[Milena] ❌ enableIndexedDbPersistence: отворен е друг таб.',
+                            'Затворете другите табове и презаредете.',
+                            err
+                        );
+                    } else if (err.code === 'unimplemented') {
+                        console.error(
+                            '[Milena] ❌ enableIndexedDbPersistence: браузърът не поддържа IndexedDB.',
+                            err
+                        );
+                    } else {
+                        console.error(
+                            '[Milena] ❌ enableIndexedDbPersistence – грешка:',
+                            err.code || '(без код)',
+                            err.message || err
+                        );
+                    }
+                    return false;
+                });
+        }
+
+        const persistenceReady = enableIndexedDbPersistence();
+
+        function whenDbReady(fn) {
+            return persistenceReady.then(fn);
+        }
+
+        function cacheUserData(userId, data) {
+            return new Promise(function(resolve, reject) {
+                if (!idbDb) { resolve(); return; }
+                const tx = idbDb.transaction('users', 'readwrite');
+                tx.objectStore('users').put({ userId: userId, data: data, updatedAt: Date.now() });
+                tx.oncomplete = function() { resolve(); };
+                tx.onerror = function() { reject(tx.error); };
+            });
+        }
+
+        function readCachedUserData(userId) {
+            return new Promise(function(resolve, reject) {
+                if (!idbDb) { resolve(null); return; }
+                const tx = idbDb.transaction('users', 'readonly');
+                const req = tx.objectStore('users').get(userId);
+                req.onsuccess = function() { resolve(req.result ? req.result.data : null); };
+                req.onerror = function() { reject(req.error); };
+            });
+        }
+
+        function updateConnStatus() {
+            const el = document.getElementById('conn-status');
+            if (!el) return;
+            const online = navigator.onLine;
+            el.className = online ? 'online' : 'offline';
+            el.title = online
+                ? (persistenceActive ? 'Онлайн (IndexedDB кеш активен)' : 'Онлайн')
+                : (persistenceActive ? 'Офлайн (данни от IndexedDB)' : 'Офлайн');
+        }
+
+        window.addEventListener('online', updateConnStatus);
+        window.addEventListener('offline', updateConnStatus);
+
+        whenDbReady(function() {
+            onValue(dbRef('.info/connected'), function() {
+                updateConnStatus();
+            });
+            updateConnStatus();
+        });
+
+        window.rtdb = rtdb;
+        window.dbRef = dbRef;
+        window.rtdbGet = get;
+        window.rtdbSet = set;
+        window.rtdbRemove = remove;
+        window.whenDbReady = whenDbReady;
+        window.cacheUserData = cacheUserData;
+        window.readCachedUserData = readCachedUserData;
+        window.persistenceActive = function() { return persistenceActive; };
+    </script>
+
     <script>
         let currentUser = "";
         let db = {};
@@ -224,28 +352,17 @@
             ivan: "12345678"
         };
 
-        const firebaseConfig = {
-            databaseURL: "https://milena-hlqb-default-rtdb.europe-west1.firebasedatabase.app"
-        };
-        firebase.initializeApp(firebaseConfig);
-        const database = firebase.database();
-
-        if (location.protocol !== 'file:' && typeof firebase.database().enablePersistence === 'function') {
-            firebase.database().enablePersistence().catch(function(err) {
-                console.warn('Offline persistence:', err.code);
-            });
+        function normalizeDb() {
+            db.rows = db.rows || [];
+            db.mtx = db.mtx || {};
+            db.prices = db.prices || {};
+            db.flds = db.flds || { plus: [], minus: [] };
+            db.shps = db.shps || [];
+            db.arts = db.arts || [];
+            db.regions = db.regions || [];
+            db.gpsShops = db.gpsShops || [];
+            db.history = db.history || {};
         }
-
-        function updateConnStatus() {
-            let el = document.getElementById('conn-status');
-            if (!el) return;
-            let online = navigator.onLine;
-            el.className = online ? 'online' : 'offline';
-            el.title = online ? 'Онлайн' : 'Офлайн';
-        }
-        window.addEventListener('online', updateConnStatus);
-        window.addEventListener('offline', updateConnStatus);
-        updateConnStatus();
 
         function selUsr(u) {
             currentUser = u;
@@ -286,11 +403,14 @@
 }
 
         function logout() { 
-    if (mtxSaveTimer) {
+        if (mtxSaveTimer) {
         clearTimeout(mtxSaveTimer);
         mtxSaveTimer = null;
         if (currentUser && db.mtx) {
-            database.ref(`${currentUser}/mtx`).set(db.mtx);
+            whenDbReady(function() {
+                cacheUserData(currentUser, db);
+                rtdbSet(dbRef(currentUser + '/mtx'), db.mtx);
+            });
         }
     }
     document.getElementById('login-screen').style.display = 'flex'; 
@@ -326,36 +446,57 @@
         }
 
         function loadData() {
-    database.ref(currentUser).once('value')
-    .then(snapshot => {
-        let data = snapshot.val();
-        
-        // Ако има данни - взимаме ги, ако няма - създаваме празен обект/структура
-        db = data || defData();
-        
-        // Гарантираме, че всички нужни структури съществуват
-        db.rows = db.rows || [];
-        db.mtx = db.mtx || {};
-        db.prices = db.prices || {};
-        db.flds = db.flds || { plus: [], minus: [] };
-        db.shps = db.shps || [];
-        db.arts = db.arts || [];
-        db.regions = db.regions || [];
-        db.gpsShops = db.gpsShops || [];
-        db.history = db.history || {};
-        
-        // Извикваме рендирането чак СЛЕД като сме подсигурили данните
-        rnd(); 
-    }).catch((err) => { 
-        console.error("Грешка при зареждане:", err);
-        alert('❌ ГРЕШКА ПРИ ЗАРЕЖДАНЕ: ' + err.message);
-        db = defData(); 
-        rnd(); 
+    whenDbReady(function() {
+        rtdbGet(dbRef(currentUser))
+        .then(function(snapshot) {
+            let data = snapshot.val();
+            if (data) {
+                db = data;
+                normalizeDb();
+                return cacheUserData(currentUser, db).then(function() { rnd(); });
+            }
+            return readCachedUserData(currentUser).then(function(cached) {
+                db = cached || defData();
+                normalizeDb();
+                rnd();
+                if (cached) {
+                    console.log('[Milena] ✅ Данни заредени от локален IndexedDB кеш.');
+                }
+            });
+        })
+        .catch(function(err) {
+            console.warn('[Milena] Firebase недостъпен, опит за зареждане от IndexedDB:', err);
+            readCachedUserData(currentUser)
+            .then(function(cached) {
+                if (cached) {
+                    db = cached;
+                    normalizeDb();
+                    rnd();
+                    console.log('[Milena] ✅ Данни заредени от локален IndexedDB кеш.');
+                } else {
+                    console.error('Грешка при зареждане:', err);
+                    alert('❌ ГРЕШКА ПРИ ЗАРЕЖДАНЕ: ' + err.message);
+                    db = defData();
+                    rnd();
+                }
+            });
+        });
     });
 }
 
         function sv() { 
-            database.ref(currentUser).set(db).then(() => { rnd(); }).catch(err => alert('❌ ГРЕШКА: ' + err.message));
+            if (!currentUser) return;
+            whenDbReady(function() {
+                cacheUserData(currentUser, db)
+                .then(function() {
+                    return rtdbSet(dbRef(currentUser), db);
+                })
+                .then(function() { rnd(); })
+                .catch(function(err) {
+                    console.warn('[Milena] Firebase запис неуспешен, данните са в IndexedDB:', err);
+                    alert('⚠️ Няма връзка със сървъра – данните са запазени локално.\n' + err.message);
+                });
+            });
         }
         
         function swPg(p, b) {
@@ -431,34 +572,36 @@
         function lclUpFn(t, id, v) { let f = db.flds[t].find(x => x.id === id); if(f) f.v = parseFloat(v) || 0; calFin(false); }
         
         function svFinAll() { 
-            // 1. Запазваме текущото състояние в Firebase
-            database.ref(`${currentUser}/flds`).set(db.flds)
-            .then(() => {
-                // 2. Създаваме запис за историята с днешна дата и точен час
-                let now = new Date();
-                let dateStr = now.toLocaleDateString('bg-BG') + ' ' + now.toLocaleTimeString('bg-BG', {hour: '2-digit', minute:'2-digit'});
-                let histId = 'h_' + Date.now();
-                
-                let tp = 0, tm = 0; 
-                db.flds.plus.forEach(x => tp += x.v || 0); 
-                db.flds.minus.forEach(x => tm += x.v || 0);
-                let total = (tp - tm).toFixed(2);
+            whenDbReady(function() {
+                rtdbSet(dbRef(currentUser + '/flds'), db.flds)
+                .then(function() {
+                    let now = new Date();
+                    let dateStr = now.toLocaleDateString('bg-BG') + ' ' + now.toLocaleTimeString('bg-BG', {hour: '2-digit', minute:'2-digit'});
+                    let histId = 'h_' + Date.now();
+                    
+                    let tp = 0, tm = 0; 
+                    db.flds.plus.forEach(x => tp += x.v || 0); 
+                    db.flds.minus.forEach(x => tm += x.v || 0);
+                    let total = (tp - tm).toFixed(2);
 
-                if(!db.history) db.history = {};
-                db.history[histId] = {
-                    date: dateStr,
-                    total: total,
-                    snapshot: JSON.parse(JSON.stringify(db.flds)) // дълбоко копие на парите
-                };
+                    if(!db.history) db.history = {};
+                    db.history[histId] = {
+                        date: dateStr,
+                        total: total,
+                        snapshot: JSON.parse(JSON.stringify(db.flds))
+                    };
 
-                // Записваме цялата история обратно
-                database.ref(`${currentUser}/history`).set(db.history)
-                .then(() => {
-                    alert(`✅ Отчетът е записан успешно и архивиран за днес!\n💰 Сума: ${total} €`); 
-                    rnd();
-                });
-            })
-            .catch(err => { alert('❌ ГРЕШКА ПРИ ЗАПИС: ' + err.message); }); 
+                    return rtdbSet(dbRef(currentUser + '/history'), db.history)
+                    .then(function() {
+                        return cacheUserData(currentUser, db);
+                    })
+                    .then(function() {
+                        alert(`✅ Отчетът е записан успешно и архивиран за днес!\n💰 Сума: ${total} €`); 
+                        rnd();
+                    });
+                })
+                .catch(function(err) { alert('❌ ГРЕШКА ПРИ ЗАПИС: ' + err.message); });
+            });
         }
 
         function rndHistory() {
@@ -502,9 +645,13 @@
 
     if (confirm('Сигурен ли си, че искаш да изтриеш този запис от архива?')) {
         delete db.history[key];
-        database.ref(`${currentUser}/history/${key}`).remove().then(() => { 
-            rnd(); 
-            alert('✅ Отчетът е изтрит успешно.');
+        whenDbReady(function() {
+            cacheUserData(currentUser, db).then(function() {
+                return rtdbRemove(dbRef(currentUser + '/history/' + key));
+            }).then(function() { 
+                rnd(); 
+                alert('✅ Отчетът е изтрит успешно.');
+            });
         });
     }
 }
@@ -632,7 +779,11 @@ function showPassArea() {
             if (!currentUser) return;
             clearTimeout(mtxSaveTimer);
             mtxSaveTimer = null;
-            database.ref(`${currentUser}/mtx`).set(db.mtx)
+            whenDbReady(function() {
+                cacheUserData(currentUser, db)
+                .then(function() {
+                    return rtdbSet(dbRef(currentUser + '/mtx'), db.mtx);
+                })
                 .then(function() {
                     if (!silent) {
                         alert('✅ Всички бройки от района са записани!');
@@ -643,13 +794,17 @@ function showPassArea() {
                     if (!silent) alert('❌ ГРЕШКА: ' + err.message);
                     else console.error('Auto-save mtx:', err.message);
                 });
+            });
         }
 
         window.addEventListener('beforeunload', function() {
             if (mtxSaveTimer && currentUser) {
                 clearTimeout(mtxSaveTimer);
                 mtxSaveTimer = null;
-                database.ref(`${currentUser}/mtx`).set(db.mtx);
+                whenDbReady(function() {
+                    cacheUserData(currentUser, db);
+                    rtdbSet(dbRef(currentUser + '/mtx'), db.mtx);
+                });
             }
         });
         
