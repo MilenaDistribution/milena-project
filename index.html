@@ -70,13 +70,30 @@
     </style>
 </head>
 <body>
-    <div id="login-screen" style="display:flex; flex-direction:column; align-items:center; padding:20px;">
-    <h2>Избери потребител:</h2>
-    <div id="pass-area" style="display:none; margin-top:20px;">
-        <input type="password" id="user-pass" placeholder="Въведи парола">
-        <button onclick="login()">Влез</button>
+    <div id="login-screen" style="display: flex; flex-direction: column; align-items: center;">
+    <h3>Вход в системата</h3>
+    
+    <select id="user-select" onchange="showPassArea()" style="padding: 10px; margin-bottom: 15px; width: 200px;">
+        <option value="" disabled selected>Избери потребител...</option>
+        <option value="martin">МАРТИН</option>
+        <option value="stoyan">СТОЯН</option>
+        <option value="ivan">ИВАН</option>
+        
+    </select>
+
+    <div id="pass-area" style="display: none;">
+        <input type="password" id="user-pass" placeholder="Въведи лична парола:" style="padding: 10px; margin-bottom: 10px;">
+        <br>
+        <button onclick="login()" class="btn-success">Влез</button>
     </div>
 </div>
+            <div id="pass-area" style="display:none;">
+                <label>Въведи лична парола:</label>
+                <input type="password" id="user-pass" placeholder="••••" style="text-align:center; font-size:22px; letter-spacing:5px;">
+                <button onclick="login()" class="btn-success" style="padding:14px;">Влез</button>
+            </div>
+        </div>
+    </div>
 
     <header>
         Хляб "Милена" (<span id="user-title">...</span>)
@@ -91,41 +108,33 @@
     </nav>
     <div class="container">
         <!-- КАСИ -->
-      <div id="page-kasi" class="page active">
-    <div class="card">
-        <h2>Начално салдо за месеца</h2>
-        
-        <button id="voice-btn" style="background: #e11d48; color: white; padding: 10px; border-radius: 8px; border: none; margin-bottom: 10px; font-weight: bold; width: 100%;">
-            🎤 ГЛАСОВА КОМАНДА
-        </button>
-        <p id="voice-status" style="font-size: 11px; color: #64748b; text-align: center; margin-bottom: 10px;"></p>
-
-        <div class="inline-inputs">
-            <input type="number" id="kasi-saldo" placeholder="Каси задължение">
-            <button onclick="svSld()" class="btn-success" style="width:100px;">Запиши</button>
+        <div id="page-kasi" class="page active">
+            <div class="card">
+                <h2>Начално салдо за месеца</h2>
+                <div class="inline-inputs">
+                    <input type="number" id="kasi-saldo" placeholder="Каси задължение">
+                    <button onclick="svSld()" class="btn-success" style="width:100px;">Запиши</button>
+                </div>
+                <p style="font-size:12px; color:#64748b; margin-top:5px;">Текущо салдо: <strong id="cur-sld">0</strong> каси.</p>
+            </div>
+            <div class="card">
+                <h2>Въвеждане за деня</h2>
+                <div class="inline-inputs">
+                    <div><label>Основен</label><input type="number" id="k-osn" placeholder="0"></div>
+                    <div><label>Ръчен</label><input type="number" id="k-rch" placeholder="0"></div>
+                    <div><label>Върнати</label><input type="number" id="k-vrn" placeholder="0"></div>
+                </div>
+                <button onclick="adKs()">Добави ден</button>
+            </div>
+            <div class="card" style="overflow-x: auto;">
+                <h2>Месечен отчет каси</h2>
+                <table>
+                    <thead><tr><th>Дата</th><th>Осн.</th><th>Ръч.</th><th>Върн.</th><th>Остават</th></tr></thead>
+                    <tbody id="kasi-tb"></tbody>
+                </table>
+                <button class="btn-danger btn-secondary" onclick="clKs()">Нулиране</button>
+            </div>
         </div>
-        <p style="font-size:12px; color:#64748b; margin-top:5px;">Текущо салдо: <strong id="cur-sld">0</strong> каси.</p>
-    </div>
-
-    <div class="card">
-        <h2>Въвеждане за деня</h2>
-        <div class="inline-inputs">
-            <div><label>Основен</label><input type="number" id="k-osn" placeholder="0"></div>
-            <div><label>Ръчен</label><input type="number" id="k-rch" placeholder="0"></div>
-            <div><label>Върнати</label><input type="number" id="k-vrn" placeholder="0"></div>
-        </div>
-        <button onclick="adKs()">Добави ден</button>
-    </div>
-
-    <div class="card" style="overflow-x: auto;">
-        <h2>Месечен отчет каси</h2>
-        <table>
-            <thead><tr><th>Дата</th><th>Осн.</th><th>Ръч.</th><th>Върн.</th><th>Остават</th></tr></thead>
-            <tbody id="kasi-tb"></tbody>
-        </table>
-        <button class="btn-danger btn-secondary" onclick="clKs()">Нулиране</button>
-    </div>
-</div>
         <!-- ОТЧЕТ -->
         <div id="page-otchet" class="page">
             <div class="total-box bg-win">За отчитане: <span id="fin-tot">0.00</span> €</div>
@@ -228,22 +237,12 @@ const PASSWORDS = {
         let isCeniUnlocked = false;
 
         function selUsr(u) {
-    currentUser = u;
-    // Махаме класа 'selected' от всички
-    document.querySelectorAll('.user-btn').forEach(b => b.classList.remove('selected'));
-    // Добавяме го само на избрания
-    document.getElementById('btn-' + u).classList.add('selected');
-    
-    // ТУК Е КЛЮЧЪТ: Показваме полето за парола
-    const passArea = document.getElementById('pass-area');
-    if (passArea) {
-        passArea.style.display = 'block';
-    } else {
-        console.error("Грешка: Не намирам елемент с id='pass-area'");
-    }
-    
-    document.getElementById('user-pass').value = '';
-}
+            currentUser = u;
+            document.querySelectorAll('.user-btn').forEach(b => b.classList.remove('selected'));
+            document.getElementById('btn-' + u).classList.add('selected');
+            document.getElementById('pass-area').style.display = 'block';
+            document.getElementById('user-pass').value = '';
+        }
         function moveShop(index, direction) {
     // direction: -1 за нагоре, 1 за надолу
     const newIndex = index + direction;
@@ -855,53 +854,7 @@ function calcTotal() {
 
 function closeCalc() { document.getElementById('calc-modal').style.display = 'none'; }
 
-// --- ЛОГИКА ЗА ГЛАСОВИ КОМАНДИ ---
-const voiceBtn = document.getElementById('voice-btn');
-const status = document.getElementById('voice-status');
-
-const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-
-if (SpeechRecognition) {
-    const recognition = new SpeechRecognition();
-    recognition.lang = 'bg-BG';
-    recognition.continuous = false;
-
-    voiceBtn.onclick = () => {
-        recognition.start();
-        status.innerText = "🎤 Слушам те...";
-        voiceBtn.style.background = "#991b1b"; // Променя се при запис
-    };
-
-    recognition.onresult = (event) => {
-        const transcript = event.results[0][0].transcript.toLowerCase();
-        status.innerText = "Ти каза: " + transcript;
-        voiceBtn.style.background = "#e11d48"; // Връща се в нормален цвят
-        
-        processVoiceCommand(transcript);
-    };
-
-    recognition.onerror = (event) => {
-    // Вдигаме поп-ап, за да видим точното име на грешката на екрана на телефона
-    alert("Грешка при слушане: " + event.error);
-    status.innerText = "Грешка: " + event.error;
-    
-    // Допълнителни насоки за най-честите грешки
-    if (event.error === 'not-allowed') {
-        console.log("Потребителят е блокирал микрофона.");
-    } else if (event.error === 'network') {
-        console.log("Проблем с мрежата или HTTPS.");
-    } else if (event.error === 'service-not-allowed') {
-        console.log("Браузърът забранява използването на услугата.");
-    }
-};
-
-function processVoiceCommand(text) {
-    // ТУК ще напишем "интелекта"
-    // Пример за проба:
-    if (text.includes("запиши")) {
-        alert("Разбрах: " + text + ". Сега ще се научим да го обработваме!");
-    }
-}
+// ДОБАВИ ТОВА ТУК, ЗА ДА СЕ СТАРТИРА ВСИЧКО:
 rnd(); 
 </script>
 
