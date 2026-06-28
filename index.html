@@ -450,39 +450,34 @@
 
         function loadData() {
     whenDbReady(function() {
-        rtdbGet(dbRef(currentUser))
+        // Офлайн-първо (offline-first): Опитваме да заредим локално запазените данни веднага, преди сървъра
+        readCachedUserData(currentUser)
+        .then(function(cached) {
+            if (cached) {
+                db = cached;
+                console.log('[Milena] ✅ Данни заредени първоначално от локален IndexedDB кеш (offline-first).');
+            } else {
+                db = defData();
+                console.log('[Milena] Няма намерени данни в локалния кеш. Зарежда се празен шаблон.');
+            }
+            normalizeDb();
+            rnd();
+
+            // След това изтегляме най-новите данни от Firebase, за да ги актуализираме
+            return rtdbGet(dbRef(currentUser));
+        })
         .then(function(snapshot) {
             let data = snapshot.val();
             if (data) {
                 db = data;
                 normalizeDb();
-                return cacheUserData(currentUser, db).then(function() { rnd(); });
-            }
-            return readCachedUserData(currentUser).then(function(cached) {
-                db = cached || defData();
-                normalizeDb();
                 rnd();
-                if (cached) {
-                    console.log('[Milena] ✅ Данни заредени от локален IndexedDB кеш.');
-                }
-            });
+                console.log('[Milena] ✅ Данни успешно обновени и синхронизирани с Firebase.');
+                return cacheUserData(currentUser, db);
+            }
         })
         .catch(function(err) {
-            console.warn('[Milena] Firebase недостъпен, опит за зареждане от IndexedDB:', err);
-            readCachedUserData(currentUser)
-            .then(function(cached) {
-                if (cached) {
-                    db = cached;
-                    normalizeDb();
-                    rnd();
-                    console.log('[Milena] ✅ Данни заредени от локален IndexedDB кеш.');
-                } else {
-                    console.error('Грешка при зареждане:', err);
-                    alert('❌ ГРЕШКА ПРИ ЗАРЕЖДАНЕ: ' + err.message);
-                    db = defData();
-                    rnd();
-                }
-            });
+            console.warn('[Milena] Firebase не е достъпен или възникна грешка при обновяване. Използва се локалният кеш:', err);
         });
     });
 }
