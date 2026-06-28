@@ -73,7 +73,7 @@
 </head>
 <body>
     <div id="conn-status" class="online" title="Онлайн"></div>
-    <div id="sync-badge" style="display: none; position: fixed; top: 8px; left: 25px; background: #eab308; color: white; padding: 2px 6px; font-size: 10px; font-weight: bold; border-radius: 4px; z-index: 10000; box-shadow: 0 1px 3px rgba(0,0,0,0.2);">В очакване на синхронизация ⏳</div>
+
     <div id="login-screen" style="display: flex; flex-direction: column; align-items: center; justify-content: center;">
         <div class="login-card">
             <h3>Вход в системата</h3>
@@ -347,15 +347,7 @@
                 : (persistenceActive ? 'Офлайн (данни от IndexedDB)' : 'Офлайн');
         }
 
-        function showOfflineSyncIndicator() {
-            const badge = document.getElementById('sync-badge');
-            if (badge) badge.style.display = 'block';
-        }
 
-        function hideOfflineSyncIndicator() {
-            const badge = document.getElementById('sync-badge');
-            if (badge) badge.style.display = 'none';
-        }
 
         function syncData() {
             if (!navigator.onLine || !currentUser || !db || Object.keys(db).length === 0) return;
@@ -372,7 +364,6 @@
             })
             .then(function() {
                 console.log('[Milena] ✅ Локалните данни бяха успешно синхронизирани с Firebase сървъра.');
-                hideOfflineSyncIndicator();
             })
             .catch(function(err) {
                 console.error('[Milena] ❌ Грешка при автоматичната синхронизация:', err);
@@ -671,12 +662,10 @@
                         return rtdbSet(dbRef(currentUser), db)
                         .then(function() {
                             alert(`✅ Отчетът е записан успешно и архивиран за днес!\n💰 Сума: ${total} €`);
-                            hideOfflineSyncIndicator();
                         });
                     } else {
-                        // Офлайн режим: Оставяме отчета записан локално и активираме индикатора за изчакване на синхронизация
-                        alert(`💾 Отчетът е записан ЛОКАЛНО (в очакване на интернет връзка за синхронизация).\n💰 Сума: ${total} €`);
-                        showOfflineSyncIndicator();
+                        // Офлайн режим: Оставяме отчета записан локално
+                        alert(`💾 Отчетът е записан ЛОКАЛНО.\n💰 Сума: ${total} €`);
                     }
                 })
                 .catch(function(err) {
