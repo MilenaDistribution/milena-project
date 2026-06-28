@@ -78,7 +78,7 @@
         <option value="martin">МАРТИН</option>
         <option value="stoyan">СТОЯН</option>
         <option value="ivan">ИВАН</option>
-        <option value="hristo">ХРИСТО</option>
+        
     </select>
 
     <div id="pass-area" style="display: none;">
@@ -182,7 +182,7 @@
             <div class="card">
                 <h2>➕ Добавяне на Район или Обект</h2>
                 <div class="inline-inputs">
-                    <input type="text" id="n-reg" placeholder="Име на район (напр. Несебър)">
+                    <input type="text" id="n-reg" placeholder="Име на район ">
                     <button onclick="adRegion()" style="width:110px;" class="btn-success">+ Район</button>
                 </div>
                 <hr style="margin: 10px 0; border:0; border-top:1px solid #e2e8f0;">
@@ -229,8 +229,8 @@
 const PASSWORDS = { 
     martin: "1212", 
     stoyan: "2222", 
-    ivan: "12345678",
-     hristo: "2223"
+    ivan: "12345678"
+
 };
         let currentUser = "";
         let db = {};
