@@ -70,30 +70,13 @@
     </style>
 </head>
 <body>
-    <div id="login-screen" style="display: flex; flex-direction: column; align-items: center;">
-    <h3>Вход в системата</h3>
-    
-    <select id="user-select" onchange="showPassArea()" style="padding: 10px; margin-bottom: 15px; width: 200px;">
-        <option value="" disabled selected>Избери потребител...</option>
-        <option value="martin">МАРТИН</option>
-        <option value="stoyan">СТОЯН</option>
-        <option value="ivan">ИВАН</option>
-        
-    </select>
-
-    <div id="pass-area" style="display: none;">
-        <input type="password" id="user-pass" placeholder="Въведи лична парола:" style="padding: 10px; margin-bottom: 10px;">
-        <br>
-        <button onclick="login()" class="btn-success">Влез</button>
+    <div id="login-screen" style="display:flex; flex-direction:column; align-items:center; padding:20px;">
+    <h2>Избери потребител:</h2>
+    <div id="pass-area" style="display:none; margin-top:20px;">
+        <input type="password" id="user-pass" placeholder="Въведи парола">
+        <button onclick="login()">Влез</button>
     </div>
 </div>
-            <div id="pass-area" style="display:none;">
-                <label>Въведи лична парола:</label>
-                <input type="password" id="user-pass" placeholder="••••" style="text-align:center; font-size:22px; letter-spacing:5px;">
-                <button onclick="login()" class="btn-success" style="padding:14px;">Влез</button>
-            </div>
-        </div>
-    </div>
 
     <header>
         Хляб "Милена" (<span id="user-title">...</span>)
@@ -245,12 +228,22 @@ const PASSWORDS = {
         let isCeniUnlocked = false;
 
         function selUsr(u) {
-            currentUser = u;
-            document.querySelectorAll('.user-btn').forEach(b => b.classList.remove('selected'));
-            document.getElementById('btn-' + u).classList.add('selected');
-            document.getElementById('pass-area').style.display = 'block';
-            document.getElementById('user-pass').value = '';
-        }
+    currentUser = u;
+    // Махаме класа 'selected' от всички
+    document.querySelectorAll('.user-btn').forEach(b => b.classList.remove('selected'));
+    // Добавяме го само на избрания
+    document.getElementById('btn-' + u).classList.add('selected');
+    
+    // ТУК Е КЛЮЧЪТ: Показваме полето за парола
+    const passArea = document.getElementById('pass-area');
+    if (passArea) {
+        passArea.style.display = 'block';
+    } else {
+        console.error("Грешка: Не намирам елемент с id='pass-area'");
+    }
+    
+    document.getElementById('user-pass').value = '';
+}
         function moveShop(index, direction) {
     // direction: -1 за нагоре, 1 за надолу
     const newIndex = index + direction;
