@@ -257,6 +257,39 @@ const PASSWORDS = {
         sv(); // Записваме променената подредба във Firebase
         rnd(); // Презареждаме, за да видим новия ред
     }
+
+}
+
+// ТВОЯТ API КЛЮЧ (AIzaSyCfCddUBjd5GefU0ocB51Uml5IgS3hLGnM)
+const MY_AI_KEY = "ПОСТАВИ_ТУК_ТВОЯ_КЛЮЧ"; 
+
+async function testGemini() {
+    console.log("Изпращам запитване към Gemini...");
+    
+    try {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${MY_AI_KEY}`;
+        
+        const response = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                contents: [{ parts: [{ text: "Здравей, ти си помощник на фирма Милена. Кажи ми кратко: 'Готов съм за работа!'" }] }]
+            })
+        });
+        
+        const data = await response.json();
+        
+        // Взимаме отговора от Gemini
+        const reply = data.candidates[0].content.parts[0].text;
+        
+        // Показваме го на екрана
+        alert("Gemini отговори: " + reply);
+        console.log("Отговор от ИИ:", reply);
+        
+    } catch (err) {
+        console.error("Грешка при връзката с ИИ:", err);
+        alert("Възникна грешка, провери конзолата (F12)!");
+    }
 }
 
         function login() {
@@ -784,6 +817,7 @@ function rndPrices() {
                 <label style="flex:1; font-weight:bold;">${artName}</label>
                 <input type="number" step="0.01" id="price-${artName}" value="${price}" style="width: 80px;">
                 <button onclick="deleteArt('${artName}')" style="background:red; color:white; border:none; padding: 5px 10px; cursor:pointer;">X</button>
+                <button onclick="testGemini()" class="btn-success">Тествай ИИ Мозъка</button>
             </div>
         `;
     });
