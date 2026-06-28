@@ -110,13 +110,6 @@
         <!-- КАСИ -->
         <div id="page-kasi" class="page active">
             <div class="card">
-                <h2>🤖 Асистент Милена</h2>
-    <input type="text" id="ai-q" placeholder="Питай асистента за отчета...">
-    <button onclick="askAI(document.getElementById('ai-q').value)" class="btn-secondary" style="background:#6366f1;">Попитай ИИ</button>
-</div>
-                <input type="text" id="ai-input" placeholder="Питай ме нещо за отчета...">
-    <button onclick="askAI(document.getElementById('ai-input').value)">Питай ИИ</button>
-</div>
                 <h2>Начално салдо за месеца</h2>
                 <div class="inline-inputs">
                     <input type="number" id="kasi-saldo" placeholder="Каси задължение">
@@ -160,11 +153,6 @@
             <button onclick="svFinAll()" class="btn-success" style="margin-bottom:10px; background:#16a34a; font-size:16px;">💾 Запиши отчета</button>
             <button onclick="calFin(true)" class="btn-secondary" style="margin-bottom:10px; background:#0284c7;">Преизчисли сумата</button>
             <button class="btn-danger btn-secondary" onclick="clFin()" style="margin-bottom:20px;">Нулиране на парите</button>
-            <div class="card" style="margin-top: 20px; border: 2px solid #6366f1;">
-    <h2>🤖 Асистент Милена</h2>
-    <input type="text" id="ai-q" placeholder="Питай асистента за отчета..." style="margin-bottom: 10px;">
-    <button onclick="askAI(document.getElementById('ai-q').value)" class="btn-secondary" style="background:#6366f1;">Попитай ИИ</button>
-</div>
 
             <!-- НОВА СЕКЦИЯ: АРХИВ НА ОТЧЕТИТЕ -->
             <div class="card">
@@ -268,53 +256,6 @@ const PASSWORDS = {
         
         sv(); // Записваме променената подредба във Firebase
         rnd(); // Презареждаме, за да видим новия ред
-    }
-
-}
-
-// ТВОЯТ API КЛЮЧ (AIzaSyCfCddUBjd5GefU0ocB51Uml5IgS3hLGnM)
-const MY_AI_KEY = "AIzaSyCfCddUBjd5GefU0ocB51Uml5IgS3hLGnM"; 
-
-async function askAI(userQuestion) {
-    if (!userQuestion.trim()) {
-        alert("Моля, задай въпрос!");
-        return;
-    }
-
-    // 1. Подготвяме контекста с данните от твоята променлива db
-    const context = `
-        Данни за фирма Милена:
-        Брой приходни пера: ${db.flds.plus.length}
-        Брой разходни пера: ${db.flds.minus.length}
-        Текуща обща сума за отчитане: ${document.getElementById('fin-tot').innerText} EUR.
-        
-        Въпрос на потребителя: ${userQuestion}`;
-
-    try {
-        // 2. Изпращаме заявката
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${MY_AI_KEY}`;
-        
-        const response = await fetch(url, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                contents: [{ 
-                    parts: [{ text: "Ти си полезен бизнес асистент за дистрибутор на хляб. Ето актуалните данни от приложението: " + context }] 
-                }]
-            })
-        });
-
-        const data = await response.json();
-        
-        // 3. Показваме отговора
-        if (data.candidates && data.candidates[0].content.parts[0].text) {
-            alert(data.candidates[0].content.parts[0].text);
-        } else {
-            alert("Грешка: Не получих отговор от ИИ.");
-        }
-    } catch (err) {
-        console.error("Грешка:", err);
-        alert("Възникна грешка при връзката с ИИ.");
     }
 }
 
@@ -843,7 +784,6 @@ function rndPrices() {
                 <label style="flex:1; font-weight:bold;">${artName}</label>
                 <input type="number" step="0.01" id="price-${artName}" value="${price}" style="width: 80px;">
                 <button onclick="deleteArt('${artName}')" style="background:red; color:white; border:none; padding: 5px 10px; cursor:pointer;">X</button>
-                <button onclick="testGemini()" class="btn-success">Тествай ИИ Мозъка</button>
             </div>
         `;
     });
