@@ -221,6 +221,9 @@
         const app = initializeApp(firebaseConfig);
         const rtdb = getDatabase(app);
 
+        // Firebase Auth persistence for offline use
+        firebase.auth().setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+
         let persistenceActive = false;
         let idbDb = null;
 
