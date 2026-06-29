@@ -1218,6 +1218,9 @@ function rndPrices() {
     // ВАЖНО: Ако db.prices е undefined, работим с празен обект {}
     let prices = db.prices || {};
     
+    // ОДИН console.log, за да видим точната структура
+    console.log('=== rndPrices(): db.prices СЪДЪРЖАНИЕ =', prices);
+    
     Object.keys(prices).forEach(artName => {
         let price = prices[artName];
         
@@ -1226,7 +1229,7 @@ function rndPrices() {
             price = 0;
         }
         
-        let displayName = artName || 'Без име';
+        let displayName = artName && artName.trim() !== "" ? artName : 'Неизвестен артикул';
         
         container.innerHTML += `
             <div class="money-row" style="display:flex; align-items:center; gap:10px; margin-bottom:5px;">
@@ -1277,28 +1280,36 @@ function addNewArt() {
 function cleanBadPrices() {
     if (!db.prices) {
         db.prices = {};
+        alert("db.prices беше празен!");
         return;
     }
+    
+    // Показваме всичко преди чистене
+    console.log('=== cleanBadPrices(): ПРЕДИ чистене db.prices =', db.prices);
     
     let cleanedCount = 0;
     let validPrices = {};
     
     Object.keys(db.prices).forEach(key => {
+        console.log('  --- cleanBadPrices(): проверявам key =', key, ', value =', db.prices[key]);
         if (key && key.trim() !== "") {
             validPrices[key] = db.prices[key];
         } else {
             cleanedCount++;
+            console.log('    -> Този ключ ще бъде изтрит!');
         }
     });
     
     db.prices = validPrices;
     
+    console.log('=== cleanBadPrices(): СЛЕД чистене db.prices =', db.prices);
+    
     if (cleanedCount > 0) {
-        alert(`Изтрити ${cleanedCount} счупени записа!`);
+        alert(`Изтрити ${cleanedCount} счупени записа! Виж конзолата за детайли!`);
         sv();
         rnd();
     } else {
-        alert("Няма счупени записи за изтриване!");
+        alert("Няма счупени записи за изтриване! Виж конзолата за детайли!");
     }
 }
 
