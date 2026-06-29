@@ -1219,7 +1219,7 @@ function rndPrices() {
         let price = prices[artName];
         container.innerHTML += `
             <div class="money-row" style="display:flex; align-items:center; gap:10px; margin-bottom:5px;">
-                <label style="flex:1; font-weight:bold;">${artName}</label>
+                <label style="flex:1; font-weight:bold;">${artName} - ${price.toFixed(2)} €</label>
                 <input type="number" step="0.01" id="price-${artName}" value="${price}" style="width: 80px;">
                 <button onclick="deleteArt('${artName}')" style="background:red; color:white; border:none; padding: 5px 10px; cursor:pointer;">X</button>
             </div>
