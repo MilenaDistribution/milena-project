@@ -1302,7 +1302,14 @@ function calcTotal() {
 
 function closeCalc() { document.getElementById('calc-modal').style.display = 'none'; }
 
-// AI Асистент функция
+// Помощна функция за по-добро "fuzzy" търсене
+function fuzzyMatch(text1, text2) {
+    const t1 = text1.toLowerCase().replace(/[ъьь]/g, '').trim();
+    const t2 = text2.toLowerCase().replace(/[ъьь]/g, '').trim();
+    return t1.includes(t2) || t2.includes(t1);
+}
+
+// AI Асистент функция - НОВА, ИНТЕЛИГЕНТНА ЛОГИКА
 function processAiCommand() {
     const aiInput = document.getElementById('ai-input');
     const text = aiInput.value.trim();
@@ -1323,11 +1330,39 @@ function processAiCommand() {
         return;
     }
     
-    // Разбиваме текста по запетаи, точки и "и"
-    const parts = text.split(/[,;.и]/).map(p => p.trim()).filter(p => p.length > 0);
+    // 1. Намираме ЦЕЛЕВИЯТ ПОЛЕ (търсим "за ...")
+    let targetField = null;
+    let targetName = null;
+    let textWithoutTarget = text;
     
-    const updatedItems = [];
-    const notFoundItems = [];
+    const targetMatch = text.match(/за\s+(.+?)(?:[,;.и]|$)/i);
+    if (targetMatch) {
+        targetName = targetMatch[1].trim();
+        console.log('[AI Асистент] Намерена целева група:', targetName);
+        
+        // Търсим точно полето в ПЛЮСОВЕ
+        targetField = db.flds.plus.find(field => 
+            fuzzyMatch(field.l.replace(' (€)', ''), targetName)
+        );
+        
+        if (!targetField) {
+            alert(`Не мога да намеря поле с име като "${targetName}" в "ПЛЮСОВЕ"!`);
+            return;
+        }
+        
+        // Премахваме "за ..." частта от текста, за да обработим само артикулите
+        textWithoutTarget = text.replace(targetMatch[0], '').trim();
+    } else {
+        // Ако няма "за ...", показваме грешка
+        alert('Моля, добавете "за [ИМЕ]" в текста, например: "100 бели хляба за Милена"!');
+        return;
+    }
+    
+    // 2. Разбираме само артикулите и бройките
+    const parts = textWithoutTarget.split(/[,;.и]/).map(p => p.trim()).filter(p => p.length > 0);
+    
+    const foundItems = [];
+    const missingPrices = [];
     
     parts.forEach(part => {
         // Търсим число и артикул
@@ -1335,56 +1370,49 @@ function processAiCommand() {
         if (!match) return;
         
         const quantity = parseInt(match[1]);
-        const searchText = match[2].toLowerCase();
+        const searchText = match[2].trim();
         
-        // Първо търсим съвпадение със СЪЩЕСТВУВАЩИТЕ полета в ПЛЮСОВЕ
-        let targetField = null;
         let matchedArt = null;
         let artPrice = 0;
         
-        // 1. Намираме артикула в ЦЕНИТЕ
+        // Търсим артикула в ЦЕНИТЕ с fuzzy match
         Object.keys(db.prices).forEach(artName => {
-            if (artName.toLowerCase().includes(searchText) || searchText.includes(artName.toLowerCase())) {
+            if (fuzzyMatch(artName, searchText)) {
                 matchedArt = artName;
                 artPrice = db.prices[artName];
+                console.log('[AI Асистент] Намерен артикул:', artName, 'с цена:', artPrice);
             }
         });
         
-        if (!matchedArt) {
-            notFoundItems.push(part);
-            console.log('[AI Асистент] Няма съвпадение за артикул:', part);
-            return;
-        }
-        
-        // 2. Търсим поле в ПЛЮСОВЕ, което съдържа името на артикула
-        targetField = db.flds.plus.find(field => 
-            field.l.toLowerCase().includes(matchedArt.toLowerCase()) || 
-            matchedArt.toLowerCase().includes(field.l.replace(' (€)', '').toLowerCase())
-        );
-        
-        if (targetField) {
-            // Намерихме полето! Обновяваме стойността
-            const total = quantity * artPrice;
-            targetField.v = total;
-            updatedItems.push({
-                name: targetField.l,
+        if (matchedArt) {
+            foundItems.push({
+                name: matchedArt,
                 quantity: quantity,
                 price: artPrice,
-                total: total
+                total: quantity * artPrice
             });
-            console.log('[AI Асистент] Обновено поле:', targetField.l, 'със стойност:', total);
         } else {
-            notFoundItems.push(part);
-            console.log('[AI Асистент] Няма съвпадащо поле в ПЛЮСОВЕ за:', part);
+            missingPrices.push(searchText);
         }
     });
     
-    if (updatedItems.length === 0) {
-        if (notFoundItems.length > 0) {
-            alert('Няма намерени съвпадения. Проверете дали: \n1. Артикулите са добавени в "Цени" \n2. Съществуват полета с тези имена в "ПЛЮСОВЕ"!');
-        }
+    // Проверка за грешки
+    if (missingPrices.length > 0) {
+        alert(`Не мога да намеря цена за: ${missingPrices.join(', ')}\n\nМоля, добавете ги в раздел "Цени"!`);
         return;
     }
+    
+    if (foundItems.length === 0) {
+        alert('Няма намерени артикули! Моля, опитайте отново!');
+        return;
+    }
+    
+    // 3. Изчисляваме ОБЩАТА СУМА
+    const totalSum = foundItems.reduce((sum, item) => sum + item.total, 0);
+    
+    // 4. Обновяваме ЦЕЛЕВИЯТ ПОЛЕ
+    targetField.v = totalSum;
+    console.log('[AI Асистент] Обновено поле', targetField.l, 'със сума:', totalSum);
     
     // Обновяваме отчета
     normalizeDb();
@@ -1394,14 +1422,9 @@ function processAiCommand() {
     // Изчистваме полето
     aiInput.value = '';
     
-    let totalSum = updatedItems.reduce((sum, item) => sum + item.total, 0);
-    let message = `✅ Успешно обновени ${updatedItems.length} поле(та)! Общо: ${totalSum.toFixed(2)} €`;
-    
-    if (notFoundItems.length > 0) {
-        message += `\n\nНе са намерени: ${notFoundItems.join(', ')}`;
-    }
-    
-    alert(message);
+    // Подготвяме текст за алерта
+    const itemsText = foundItems.map(item => `${item.quantity} ${item.name}`).join(' + ');
+    alert(`✅ Добавени са ${totalSum.toFixed(2)} € за ${targetName} (${itemsText})!`);
     
     // Препращаме към раздел "Отчет"
     swPg('otchet', document.querySelector('.nav-item[onclick*="otchet"]'));
