@@ -207,7 +207,10 @@
         </div>
         <hr style="margin: 10px 0;">
         <div id="price-list"></div>
-        <button onclick="savePrices()" class="btn-success">Запиши новите цени</button>
+        <div style="display:flex; gap:10px; margin-top:10px;">
+            <button onclick="savePrices()" class="btn-success" style="flex:1;">Запиши новите цени</button>
+            <button onclick="cleanBadPrices()" class="btn-danger" style="flex:1;">Изчисти счупени записи</button>
+        </div>
     </div>
 </div>
 
@@ -1248,15 +1251,54 @@ function addNewArt() {
     let name = nameInput.value.trim();
     let price = parseFloat(priceInput.value);
 
-    // ВАЖНО: Проверка дали name е валиден текст
-    if (name !== "" && !isNaN(price)) {
-        db.prices[name] = price; // Името (текст) е ключ, цената е стойност
-        nameInput.value = '';
-        priceInput.value = '';
-        sv(); // Запис във Firebase
-        rnd(); // Презареждане на интерфейса
+    // Проверка за празно име
+    if (name === "") {
+        alert("Въведи име на артикул!");
+        nameInput.focus();
+        return;
+    }
+
+    // Проверка за валидна цена
+    if (isNaN(price) || price <= 0) {
+        alert("Въведи валидна цена (по-голяма от 0)!");
+        priceInput.focus();
+        return;
+    }
+
+    // Добавяме артикула
+    db.prices[name] = price;
+    nameInput.value = '';
+    priceInput.value = '';
+    sv();
+    rnd();
+}
+
+// Функция за изтриване на счупените записи (без име)
+function cleanBadPrices() {
+    if (!db.prices) {
+        db.prices = {};
+        return;
+    }
+    
+    let cleanedCount = 0;
+    let validPrices = {};
+    
+    Object.keys(db.prices).forEach(key => {
+        if (key && key.trim() !== "") {
+            validPrices[key] = db.prices[key];
+        } else {
+            cleanedCount++;
+        }
+    });
+    
+    db.prices = validPrices;
+    
+    if (cleanedCount > 0) {
+        alert(`Изтрити ${cleanedCount} счупени записа!`);
+        sv();
+        rnd();
     } else {
-        alert("Моля, въведи коректно име и цена!");
+        alert("Няма счупени записи за изтриване!");
     }
 }
 
