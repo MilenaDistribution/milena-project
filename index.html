@@ -1212,12 +1212,29 @@ function showPassArea() {
 // Логика за цените
 function rndPrices() {
     let container = document.getElementById('price-list');
-    if (!container) return;
+    
+    // DEBUG: Проверяваме дали контейнерът съществува
+    console.log('=== rndPrices(): container =', container);
+    if (!container) {
+        console.error('=== rndPrices(): НЕМА КОНТЕЙНЕР price-list!!!');
+        alert('НЕМА КОНТЕЙНЕР price-list! Виж конзолата!');
+        return;
+    }
+    
+    // Правим контейнера МНОГО ЯСЕН за виждане
     container.innerHTML = '';
+    container.style.display = 'block !important';
+    container.style.visibility = 'visible !important';
+    container.style.background = 'yellow !important';
+    container.style.border = '3px solid red !important';
+    container.style.padding = '10px !important';
+    container.style.minHeight = '50px !important';
+    container.style.zIndex = '99999 !important';
     
     let prices = db.prices || {};
     
     console.log('=== rndPrices(): db.prices СЪДЪРЖАНИЕ =', prices);
+    console.log('=== rndPrices(): Object.entries(prices).length =', Object.entries(prices).length);
     
     Object.entries(prices).forEach(([artName, price]) => {
         
@@ -1234,15 +1251,22 @@ function rndPrices() {
         // Създаваме div елемента
         const itemDiv = document.createElement('div');
         itemDiv.className = 'money-row';
-        itemDiv.style.display = 'flex';
+        itemDiv.style.display = 'flex !important';
         itemDiv.style.alignItems = 'center';
         itemDiv.style.gap = '10px';
         itemDiv.style.marginBottom = '5px';
+        itemDiv.style.background = 'lightblue !important';
+        itemDiv.style.padding = '5px !important';
+        itemDiv.style.border = '1px solid blue !important';
         
-        // Създаваме label
+        // Създаваме label - СИЛНО ВИДИМ!
         const label = document.createElement('label');
         label.style.flex = '1';
-        label.style.fontWeight = 'bold';
+        label.style.fontWeight = 'bold !important';
+        label.style.color = 'black !important';
+        label.style.fontSize = '18px !important';
+        label.style.background = 'white !important';
+        label.style.padding = '5px !important';
         label.innerHTML = displayName + ' - ' + priceText + ' €';
         
         // Създаваме input
@@ -1252,12 +1276,15 @@ function rndPrices() {
         input.id = 'price-' + encodeURIComponent(artName);
         input.value = price;
         input.style.width = '80px';
+        input.style.color = 'black !important';
+        input.style.background = 'white !important';
+        input.style.border = '1px solid black !important';
         
         // Създаваме delete бутон
         const deleteBtn = document.createElement('button');
         deleteBtn.innerHTML = 'X';
-        deleteBtn.style.background = 'red';
-        deleteBtn.style.color = 'white';
+        deleteBtn.style.background = 'red !important';
+        deleteBtn.style.color = 'white !important';
         deleteBtn.style.border = 'none';
         deleteBtn.style.padding = '5px 10px';
         deleteBtn.style.cursor = 'pointer';
@@ -1271,6 +1298,10 @@ function rndPrices() {
         // Добавяме itemDiv към контейнера
         container.appendChild(itemDiv);
     });
+    
+    if (Object.entries(prices).length === 0) {
+        container.innerHTML = '<div style="color: red; font-size: 16px; font-weight: bold;">НЯМА АРТИКУЛИ В ЦЕНИТЕ!</div>';
+    }
 }
 
 function deleteArt(artName) {
