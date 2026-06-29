@@ -207,10 +207,7 @@
         </div>
         <hr style="margin: 10px 0;">
         <div id="price-list"></div>
-        <div style="display:flex; gap:10px; margin-top:10px;">
-            <button onclick="savePrices()" class="btn-success" style="flex:1;">Запиши новите цени</button>
-            <button onclick="cleanBadPrices()" class="btn-danger" style="flex:1;">Изчисти счупени записи</button>
-        </div>
+        <button onclick="savePrices()" class="btn-success">Запиши новите цени</button>
     </div>
 </div>
 
@@ -1212,105 +1209,28 @@ function showPassArea() {
 // Логика за цените
 function rndPrices() {
     let container = document.getElementById('price-list');
-    
-    // DEBUG: Проверяваме дали контейнерът съществува
-    console.log('=== rndPrices(): container =', container);
-    if (!container) {
-        console.error('=== rndPrices(): НЕМА КОНТЕЙНЕР price-list!!!');
-        alert('НЕМА КОНТЕЙНЕР price-list! Виж конзолата!');
-        return;
-    }
-    
-    // Правим контейнера МНОГО ЯСЕН за виждане
+    if (!container) return; // Ако страницата не е заредена, спираме
     container.innerHTML = '';
-    container.style.display = 'block !important';
-    container.style.visibility = 'visible !important';
-    container.style.background = 'yellow !important';
-    container.style.border = '3px solid red !important';
-    container.style.padding = '10px !important';
-    container.style.minHeight = '50px !important';
-    container.style.zIndex = '99999 !important';
     
+    // ВАЖНО: Ако db.prices е undefined, работим с празен обект {}
     let prices = db.prices || {};
     
-    console.log('=== rndPrices(): db.prices СЪДЪРЖАНИЕ =', prices);
-    console.log('=== rndPrices(): Object.entries(prices).length =', Object.entries(prices).length);
-    
-    Object.entries(prices).forEach(([artName, price]) => {
-        
-        // Засигуряваме цената
-        if (typeof price !== 'number') {
-            price = 0;
-        }
-        
-        let displayName = artName || 'Неизвестен артикул';
-        let priceText = price.toFixed(2);
-        
-        console.log(`  -> rndPrices(): ЩЕ ПОКАЖЕМ: ${displayName} - ${priceText} €`);
-        
-        // Създаваме div елемента
-        const itemDiv = document.createElement('div');
-        itemDiv.className = 'money-row';
-        itemDiv.style.display = 'flex !important';
-        itemDiv.style.alignItems = 'center';
-        itemDiv.style.gap = '10px';
-        itemDiv.style.marginBottom = '5px';
-        itemDiv.style.background = 'lightblue !important';
-        itemDiv.style.padding = '5px !important';
-        itemDiv.style.border = '1px solid blue !important';
-        
-        // Създаваме label - СИЛНО ВИДИМ!
-        const label = document.createElement('label');
-        label.style.flex = '1';
-        label.style.fontWeight = 'bold !important';
-        label.style.color = 'black !important';
-        label.style.fontSize = '18px !important';
-        label.style.background = 'white !important';
-        label.style.padding = '5px !important';
-        label.innerHTML = displayName + ' - ' + priceText + ' €';
-        
-        // Създаваме input
-        const input = document.createElement('input');
-        input.type = 'number';
-        input.step = '0.01';
-        input.id = 'price-' + encodeURIComponent(artName);
-        input.value = price;
-        input.style.width = '80px';
-        input.style.color = 'black !important';
-        input.style.background = 'white !important';
-        input.style.border = '1px solid black !important';
-        
-        // Създаваме delete бутон
-        const deleteBtn = document.createElement('button');
-        deleteBtn.innerHTML = 'X';
-        deleteBtn.style.background = 'red !important';
-        deleteBtn.style.color = 'white !important';
-        deleteBtn.style.border = 'none';
-        deleteBtn.style.padding = '5px 10px';
-        deleteBtn.style.cursor = 'pointer';
-        deleteBtn.onclick = function() { deleteArt(encodeURIComponent(artName)); };
-        
-        // Добавяме всички към itemDiv
-        itemDiv.appendChild(label);
-        itemDiv.appendChild(input);
-        itemDiv.appendChild(deleteBtn);
-        
-        // Добавяме itemDiv към контейнера
-        container.appendChild(itemDiv);
+    Object.keys(prices).forEach(artName => {
+        let price = prices[artName];
+        container.innerHTML += `
+            <div class="money-row" style="display:flex; align-items:center; gap:10px; margin-bottom:5px;">
+                <label style="flex:1; font-weight:bold;">${artName}</label>
+                <input type="number" step="0.01" id="price-${artName}" value="${price}" style="width: 80px;">
+                <button onclick="deleteArt('${artName}')" style="background:red; color:white; border:none; padding: 5px 10px; cursor:pointer;">X</button>
+            </div>
+        `;
     });
-    
-    if (Object.entries(prices).length === 0) {
-        container.innerHTML = '<div style="color: red; font-size: 16px; font-weight: bold;">НЯМА АРТИКУЛИ В ЦЕНИТЕ!</div>';
-    }
 }
 
 function deleteArt(artName) {
-    // Декодираме името, ако е било кодирано
-    let decodedArtName = decodeURIComponent(artName);
-    if (confirm("Сигурен ли си, че искаш да изтриеш: " + decodedArtName + "?")) {
-        delete db.prices[decodedArtName];
+    if (confirm("Сигурен ли си, че искаш да изтриеш: " + artName + "?")) {
+        delete db.prices[artName];
         sv(); // Записва промените във Firebase и презарежда
-        rnd();
     }
 }
 
@@ -1320,75 +1240,27 @@ function addNewArt() {
     let name = nameInput.value.trim();
     let price = parseFloat(priceInput.value);
 
-    // Проверка за празно име
-    if (name === "") {
-        alert("Въведи име на артикул!");
-        nameInput.focus();
-        return;
-    }
-
-    // Проверка за валидна цена
-    if (isNaN(price) || price <= 0) {
-        alert("Въведи валидна цена (по-голяма от 0)!");
-        priceInput.focus();
-        return;
-    }
-
-    // Добавяме артикула
-    db.prices[name] = price;
-    nameInput.value = '';
-    priceInput.value = '';
-    sv();
-    rnd();
-}
-
-// Функция за изтриване на счупените записи (без име)
-function cleanBadPrices() {
-    if (!db.prices) {
-        db.prices = {};
-        alert("db.prices беше празен!");
-        return;
-    }
-    
-    // Показваме всичко преди чистене
-    console.log('=== cleanBadPrices(): ПРЕДИ чистене db.prices =', db.prices);
-    
-    let cleanedCount = 0;
-    let validPrices = {};
-    
-    Object.keys(db.prices).forEach(key => {
-        console.log('  --- cleanBadPrices(): проверявам key =', key, ', value =', db.prices[key]);
-        if (key && key.trim() !== "") {
-            validPrices[key] = db.prices[key];
-        } else {
-            cleanedCount++;
-            console.log('    -> Този ключ ще бъде изтрит!');
-        }
-    });
-    
-    db.prices = validPrices;
-    
-    console.log('=== cleanBadPrices(): СЛЕД чистене db.prices =', db.prices);
-    
-    if (cleanedCount > 0) {
-        alert(`Изтрити ${cleanedCount} счупени записа! Виж конзолата за детайли!`);
-        sv();
-        rnd();
+    // ВАЖНО: Проверка дали name е валиден текст
+    if (name !== "" && !isNaN(price)) {
+        db.prices[name] = price; // Името (текст) е ключ, цената е стойност
+        nameInput.value = '';
+        priceInput.value = '';
+        sv(); // Запис във Firebase
+        rnd(); // Презареждане на интерфейса
     } else {
-        alert("Няма счупени записи за изтриване! Виж конзолата за детайли!");
+        alert("Моля, въведи коректно име и цена!");
     }
 }
 
 function savePrices() {
     Object.keys(db.prices).forEach(artName => {
-        let input = document.getElementById(`price-${encodeURIComponent(artName)}`);
+        let input = document.getElementById(`price-${artName}`);
         if (input) {
             db.prices[artName] = parseFloat(input.value) || 0;
         }
     });
     sv();
     alert('Цените са записани!');
-    rnd();
 }
 
 // Логика за калкулатора
@@ -1420,8 +1292,8 @@ function calcTotal() {
 
 function closeCalc() { document.getElementById('calc-modal').style.display = 'none'; }
 
-// rnd() ще бъде извикана САМО след като потребителят се логне и данните са заредени!
-// Премахваме автоматичното стартиране, за да предотвратим грешки преди зареждане!
+// ДОБАВИ ТОВА ТУК, ЗА ДА СЕ СТАРТИРА ВСИЧКО:
+rnd(); 
 </script>
 
 <div id="calc-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:9999; padding:20px; overflow-y:auto;">  
