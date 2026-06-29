@@ -136,6 +136,7 @@
             <div class="total-box bg-win">За отчитане: <span id="fin-tot">0.00</span> €</div>
             <button onclick="copyToViber()" class="btn-viber">📋 Копирай отчета за Viber</button>
             <button onclick="openCalc()" class="btn-secondary" style="margin-bottom:10px; background:#eab308;">🧮 Калкулатор товарителница</button>
+            <button onclick="startVoiceInput()" class="btn-secondary" style="margin-bottom:10px; background:#7360f2;">🎤 Гласово въвеждане</button>
             <div class="card">
                 <h2>➕ ПЛЮСОВЕ (Приходи)</h2>
                 <div id="p-lst"></div>
@@ -1292,6 +1293,172 @@ function calcTotal() {
 
 function closeCalc() { document.getElementById('calc-modal').style.display = 'none'; }
 
+// ГЛАСОВО ВЪВЕЖДАНЕ
+let voiceItems = [];
+let recognition = null;
+
+function startVoiceInput() {
+    voiceItems = [];
+    document.getElementById('voice-modal').style.display = 'block';
+    document.getElementById('voice-status').innerText = 'Слушам... Моля, кажете вашите записи!';
+    document.getElementById('voice-status').style.background = '#fee2e2';
+    document.getElementById('voice-preview').innerHTML = '<p style="color:#64748b;">Няма разпознати данни все още...</p>';
+    document.getElementById('voice-total').innerText = 'Общо: 0.00 €';
+    
+    // Инициализираме Web Speech API
+    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+        alert('Вашият браузър не поддържа гласово разпознаване!');
+        closeVoiceModal();
+        return;
+    }
+    
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    recognition = new SpeechRecognition();
+    recognition.lang = 'bg-BG';
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    
+    recognition.onstart = function() {
+        document.getElementById('voice-status').innerText = '🎤 Слушам... Говорете!';
+        document.getElementById('voice-status').style.background = '#d1fae5';
+    };
+    
+    recognition.onresult = function(event) {
+        let transcript = '';
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+            if (event.results[i].isFinal) {
+                transcript += event.results[i][0].transcript + ' ';
+            }
+        }
+        
+        if (transcript.trim()) {
+            console.log('[Гласово въвеждане] Разпознато:', transcript);
+            parseVoiceCommand(transcript.trim());
+        }
+    };
+    
+    recognition.onerror = function(event) {
+        console.error('[Гласово въвеждане] Грешка:', event.error);
+        document.getElementById('voice-status').innerText = '❌ Грешка при разпознаване!';
+        document.getElementById('voice-status').style.background = '#fee2e2';
+    };
+    
+    recognition.onend = function() {
+        document.getElementById('voice-status').innerText = 'Завърших! Ако искаш да добавяш още, натисни бутона отново.';
+        document.getElementById('voice-status').style.background = '#e0f2fe';
+    };
+    
+    recognition.start();
+}
+
+function parseVoiceCommand(text) {
+    // Разбиваме текста на части (по запетая, "и" и т.н.)
+    const parts = text.split(/,| и |\.|;|:/);
+    
+    parts.forEach(part => {
+        part = part.trim();
+        if (!part) return;
+        
+        // Опитваме се да намерим число и артикул
+        const numMatch = part.match(/(\d+)\s*(.*)/);
+        if (!numMatch) return;
+        
+        const qty = parseInt(numMatch[1]);
+        let artName = numMatch[2].trim().toLowerCase();
+        
+        // Опитваме се да намерим артикул в db.prices
+        let matchedArt = null;
+        let matchedPrice = 0;
+        
+        if (db.prices) {
+            Object.keys(db.prices).forEach(key => {
+                const keyLower = key.toLowerCase();
+                if (keyLower.includes(artName) || artName.includes(keyLower)) {
+                    matchedArt = key;
+                    matchedPrice = db.prices[key];
+                }
+            });
+        }
+        
+        if (matchedArt) {
+            // Намерихме артикул! Добавяме го
+            const total = qty * matchedPrice;
+            voiceItems.push({
+                name: matchedArt,
+                qty: qty,
+                price: matchedPrice,
+                total: total
+            });
+            
+            updateVoicePreview();
+        } else {
+            // Не намерихме артикул, показваме съобщение
+            console.log('[Гласово въвеждане] Не намерих артикул:', artName);
+            const previewDiv = document.getElementById('voice-preview');
+            previewDiv.innerHTML += `<p style="color:#dc2626;">⚠️ Не разпознах артикул: "${part}"</p>`;
+        }
+    });
+}
+
+function updateVoicePreview() {
+    const previewDiv = document.getElementById('voice-preview');
+    const totalDiv = document.getElementById('voice-total');
+    
+    if (voiceItems.length === 0) {
+        previewDiv.innerHTML = '<p style="color:#64748b;">Няма разпознати данни все още...</p>';
+        totalDiv.innerText = 'Общо: 0.00 €';
+        return;
+    }
+    
+    let totalSum = 0;
+    let html = '<table style="width:100%; border-collapse: collapse;">';
+    html += '<tr style="background:#e2e8f0;"><th style="padding:8px; text-align:left;">Артикул</th><th style="padding:8px;">Брой</th><th style="padding:8px;">Цена</th><th style="padding:8px;">Общо</th></tr>';
+    
+    voiceItems.forEach(item => {
+        totalSum += item.total;
+        html += `<tr><td style="padding:8px; border-bottom:1px solid #e2e8f0;">${item.name}</td><td style="padding:8px; text-align:center; border-bottom:1px solid #e2e8f0;">${item.qty}</td><td style="padding:8px; text-align:right; border-bottom:1px solid #e2e8f0;">${item.price.toFixed(2)} €</td><td style="padding:8px; text-align:right; border-bottom:1px solid #e2e8f0;">${item.total.toFixed(2)} €</td></tr>`;
+    });
+    
+    html += '</table>';
+    previewDiv.innerHTML = html;
+    totalDiv.innerText = 'Общо: ' + totalSum.toFixed(2) + ' €';
+}
+
+function confirmVoiceInput() {
+    if (voiceItems.length === 0) {
+        alert('Няма разпознати данни за добавяне!');
+        return;
+    }
+    
+    // Добавяме всички разпознати елементи в Приходите
+    voiceItems.forEach(item => {
+        const id = 'f' + Date.now() + Math.random();
+        if (!db.flds) db.flds = { plus: [], minus: [] };
+        db.flds.plus.push({
+            id: id,
+            l: item.name + ' (€)',
+            v: item.total
+        });
+    });
+    
+    // Обновяваме отчета
+    normalizeDb();
+    rnd();
+    calFin(false);
+    closeVoiceModal();
+    
+    alert('✅ Успешно добавихте ' + voiceItems.length + ' елемента в отчета!');
+    voiceItems = [];
+}
+
+function closeVoiceModal() {
+    if (recognition) {
+        recognition.stop();
+        recognition = null;
+    }
+    document.getElementById('voice-modal').style.display = 'none';
+}
+
 // ДОБАВИ ТОВА ТУК, ЗА ДА СЕ СТАРТИРА ВСИЧКО:
 rnd(); 
 </script>
@@ -1302,6 +1469,18 @@ rnd();
         <div id="calc-inputs" style="text-align:left; margin-bottom:15px;"></div>
         <div style="font-size:20px; font-weight:bold; margin-bottom:15px;">Общо: <span id="calc-total">0.00</span> €</div>
         <button onclick="closeCalc()" class="btn-success">Затвори</button>
+    </div>
+</div>
+
+<!-- Модал за преглед на гласовите данни -->
+<div id="voice-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:9999; padding:20px; overflow-y:auto;">  
+    <div class="login-card" style="margin: 50px auto;">
+        <h2>🎤 Разпознати данни</h2>
+        <div id="voice-status" style="margin-bottom:10px; padding:10px; border-radius:5px; background:#e2e8f0;">Готов за запис...</div>
+        <div id="voice-preview" style="text-align:left; margin-bottom:15px; max-height:300px; overflow-y:auto;"></div>
+        <div id="voice-total" style="font-size:20px; font-weight:bold; margin-bottom:15px;">Общо: 0.00 €</div>
+        <button onclick="confirmVoiceInput()" class="btn-success" style="margin-bottom:10px;">✅ Потвърди и добави в отчета</button>
+        <button onclick="closeVoiceModal()" class="btn-danger">❌ Затвори</button>
     </div>
 </div>
 </body>
