@@ -1218,11 +1218,10 @@ function rndPrices() {
     // ВАЖНО: Ако db.prices е undefined, работим с празен обект {}
     let prices = db.prices || {};
     
-    // ОДИН console.log, за да видим точната структура
     console.log('=== rndPrices(): db.prices СЪДЪРЖАНИЕ =', prices);
     
-    Object.keys(prices).forEach(artName => {
-        let price = prices[artName];
+    // Итерация с Object.entries, за да вземем и ключ (името), и стойност (цената)
+    Object.entries(prices).forEach(([artName, price]) => {
         
         // Проверка дали price е число
         if (typeof price !== 'number') {
@@ -1231,20 +1230,25 @@ function rndPrices() {
         
         let displayName = artName && artName.trim() !== "" ? artName : 'Неизвестен артикул';
         
+        console.log(`  -> rndPrices(): artName = ${displayName}, price = ${price}`);
+        
         container.innerHTML += `
             <div class="money-row" style="display:flex; align-items:center; gap:10px; margin-bottom:5px;">
                 <label style="flex:1; font-weight:bold;">${displayName} - ${price.toFixed(2)} €</label>
-                <input type="number" step="0.01" id="price-${artName}" value="${price}" style="width: 80px;">
-                <button onclick="deleteArt('${artName}')" style="background:red; color:white; border:none; padding: 5px 10px; cursor:pointer;">X</button>
+                <input type="number" step="0.01" id="price-${encodeURIComponent(artName)}" value="${price}" style="width: 80px;">
+                <button onclick="deleteArt('${encodeURIComponent(artName)}')" style="background:red; color:white; border:none; padding: 5px 10px; cursor:pointer;">X</button>
             </div>
         `;
     });
 }
 
 function deleteArt(artName) {
-    if (confirm("Сигурен ли си, че искаш да изтриеш: " + artName + "?")) {
-        delete db.prices[artName];
+    // Декодираме името, ако е било кодирано
+    let decodedArtName = decodeURIComponent(artName);
+    if (confirm("Сигурен ли си, че искаш да изтриеш: " + decodedArtName + "?")) {
+        delete db.prices[decodedArtName];
         sv(); // Записва промените във Firebase и презарежда
+        rnd();
     }
 }
 
@@ -1315,13 +1319,14 @@ function cleanBadPrices() {
 
 function savePrices() {
     Object.keys(db.prices).forEach(artName => {
-        let input = document.getElementById(`price-${artName}`);
+        let input = document.getElementById(`price-${encodeURIComponent(artName)}`);
         if (input) {
             db.prices[artName] = parseFloat(input.value) || 0;
         }
     });
     sv();
     alert('Цените са записани!');
+    rnd();
 }
 
 // Логика за калкулатора
