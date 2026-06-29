@@ -1215,11 +1215,21 @@ function rndPrices() {
     // ВАЖНО: Ако db.prices е undefined, работим с празен обект {}
     let prices = db.prices || {};
     
+    // ДЕБЪГ: Извеждаме целия обект в конзолата
+    console.log('=== DEBUG rndPrices(): db.prices = ', prices);
+    console.log('=== DEBUG rndPrices(): Object.keys(prices) = ', Object.keys(prices));
+    
     Object.keys(prices).forEach(artName => {
         let price = prices[artName];
+        
+        // ДЕБЪГ: Извеждаме всеки ключ и стойност
+        console.log(`=== DEBUG rndPrices(): artName =', artName, ', price =', price);
+        
+        let displayName = artName || 'Без име';
+        
         container.innerHTML += `
             <div class="money-row" style="display:flex; align-items:center; gap:10px; margin-bottom:5px;">
-                <label style="flex:1; font-weight:bold;">${artName} - ${price.toFixed(2)} €</label>
+                <label style="flex:1; font-weight:bold;">${displayName} - ${price.toFixed(2)} €</label>
                 <input type="number" step="0.01" id="price-${artName}" value="${price}" style="width: 80px;">
                 <button onclick="deleteArt('${artName}')" style="background:red; color:white; border:none; padding: 5px 10px; cursor:pointer;">X</button>
             </div>
@@ -1240,9 +1250,12 @@ function addNewArt() {
     let name = nameInput.value.trim();
     let price = parseFloat(priceInput.value);
 
+    console.log('=== DEBUG addNewArt(): name=', name, ', price=', price);
+
     // ВАЖНО: Проверка дали name е валиден текст
     if (name !== "" && !isNaN(price)) {
         db.prices[name] = price; // Името (текст) е ключ, цената е стойност
+        console.log('=== DEBUG addNewArt(): db.prices after add = ', db.prices);
         nameInput.value = '';
         priceInput.value = '';
         sv(); // Запис във Firebase
