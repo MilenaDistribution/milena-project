@@ -1215,15 +1215,13 @@ function rndPrices() {
     // ВАЖНО: Ако db.prices е undefined, работим с празен обект {}
     let prices = db.prices || {};
     
-    // ДЕБЪГ: Извеждаме целия обект в конзолата
-    console.log('=== DEBUG rndPrices(): db.prices = ', prices);
-    console.log('=== DEBUG rndPrices(): Object.keys(prices) = ', Object.keys(prices));
-    
     Object.keys(prices).forEach(artName => {
         let price = prices[artName];
         
-        // ДЕБЪГ: Извеждаме всеки ключ и стойност
-        console.log(`=== DEBUG rndPrices(): artName =', artName, ', price =', price);
+        // Проверка дали price е число
+        if (typeof price !== 'number') {
+            price = 0;
+        }
         
         let displayName = artName || 'Без име';
         
@@ -1250,12 +1248,9 @@ function addNewArt() {
     let name = nameInput.value.trim();
     let price = parseFloat(priceInput.value);
 
-    console.log('=== DEBUG addNewArt(): name=', name, ', price=', price);
-
     // ВАЖНО: Проверка дали name е валиден текст
     if (name !== "" && !isNaN(price)) {
         db.prices[name] = price; // Името (текст) е ключ, цената е стойност
-        console.log('=== DEBUG addNewArt(): db.prices after add = ', db.prices);
         nameInput.value = '';
         priceInput.value = '';
         sv(); // Запис във Firebase
@@ -1305,8 +1300,8 @@ function calcTotal() {
 
 function closeCalc() { document.getElementById('calc-modal').style.display = 'none'; }
 
-// ДОБАВИ ТОВА ТУК, ЗА ДА СЕ СТАРТИРА ВСИЧКО:
-rnd(); 
+// rnd() ще бъде извикана САМО след като потребителят се логне и данните са заредени!
+// Премахваме автоматичното стартиране, за да предотвратим грешки преди зареждане!
 </script>
 
 <div id="calc-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:9999; padding:20px; overflow-y:auto;">  
