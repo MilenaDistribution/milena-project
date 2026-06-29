@@ -1312,16 +1312,22 @@ function processAiCommand() {
         return;
     }
     
-    // Проверка дали имаме цени
+    // Проверка дали имаме цени и съществуващи полета
     if (!db.prices || Object.keys(db.prices).length === 0) {
         alert('Моля, първо добавете артикули и цени в раздел "Цени"!');
+        return;
+    }
+    
+    if (!db.flds.plus || db.flds.plus.length === 0) {
+        alert('Моля, първо добавете полета в "ПЛЮСОВЕ" в раздел "Отчет"!');
         return;
     }
     
     // Разбиваме текста по запетаи, точки и "и"
     const parts = text.split(/[,;.и]/).map(p => p.trim()).filter(p => p.length > 0);
     
-    const matchedItems = [];
+    const updatedItems = [];
+    const notFoundItems = [];
     
     parts.forEach(part => {
         // Търсим число и артикул
@@ -1331,10 +1337,12 @@ function processAiCommand() {
         const quantity = parseInt(match[1]);
         const searchText = match[2].toLowerCase();
         
-        // Търси съвпадение с артикулите
+        // Първо търсим съвпадение със СЪЩЕСТВУВАЩИТЕ полета в ПЛЮСОВЕ
+        let targetField = null;
         let matchedArt = null;
         let artPrice = 0;
         
+        // 1. Намираме артикула в ЦЕНИТЕ
         Object.keys(db.prices).forEach(artName => {
             if (artName.toLowerCase().includes(searchText) || searchText.includes(artName.toLowerCase())) {
                 matchedArt = artName;
@@ -1342,34 +1350,41 @@ function processAiCommand() {
             }
         });
         
-        if (matchedArt) {
-            matchedItems.push({
-                name: matchedArt,
+        if (!matchedArt) {
+            notFoundItems.push(part);
+            console.log('[AI Асистент] Няма съвпадение за артикул:', part);
+            return;
+        }
+        
+        // 2. Търсим поле в ПЛЮСОВЕ, което съдържа името на артикула
+        targetField = db.flds.plus.find(field => 
+            field.l.toLowerCase().includes(matchedArt.toLowerCase()) || 
+            matchedArt.toLowerCase().includes(field.l.replace(' (€)', '').toLowerCase())
+        );
+        
+        if (targetField) {
+            // Намерихме полето! Обновяваме стойността
+            const total = quantity * artPrice;
+            targetField.v = total;
+            updatedItems.push({
+                name: targetField.l,
                 quantity: quantity,
                 price: artPrice,
-                total: quantity * artPrice
+                total: total
             });
+            console.log('[AI Асистент] Обновено поле:', targetField.l, 'със стойност:', total);
         } else {
-            console.log('[AI Асистент] Няма съвпадение за:', part);
+            notFoundItems.push(part);
+            console.log('[AI Асистент] Няма съвпадащо поле в ПЛЮСОВЕ за:', part);
         }
     });
     
-    if (matchedItems.length === 0) {
-        alert('Няма намерени съвпадения с артикулите от "Цени". Моля, проверете и опитайте отново!');
+    if (updatedItems.length === 0) {
+        if (notFoundItems.length > 0) {
+            alert('Няма намерени съвпадения. Проверете дали: \n1. Артикулите са добавени в "Цени" \n2. Съществуват полета с тези имена в "ПЛЮСОВЕ"!');
+        }
         return;
     }
-    
-    // Добавяме елементите в Плюсовете (Приходите)
-    let totalSum = 0;
-    matchedItems.forEach(item => {
-        totalSum += item.total;
-        const id = 'f' + Date.now() + Math.random();
-        db.flds.plus.push({
-            id: id,
-            l: `${item.name} (${item.quantity} бр.)`,
-            v: item.total
-        });
-    });
     
     // Обновяваме отчета
     normalizeDb();
@@ -1379,7 +1394,14 @@ function processAiCommand() {
     // Изчистваме полето
     aiInput.value = '';
     
-    alert(`✅ Успешно добавени ${matchedItems.length} елемента в отчета! Общо: ${totalSum.toFixed(2)} €`);
+    let totalSum = updatedItems.reduce((sum, item) => sum + item.total, 0);
+    let message = `✅ Успешно обновени ${updatedItems.length} поле(та)! Общо: ${totalSum.toFixed(2)} €`;
+    
+    if (notFoundItems.length > 0) {
+        message += `\n\nНе са намерени: ${notFoundItems.join(', ')}`;
+    }
+    
+    alert(message);
     
     // Препращаме към раздел "Отчет"
     swPg('otchet', document.querySelector('.nav-item[onclick*="otchet"]'));
