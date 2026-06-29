@@ -1164,7 +1164,11 @@ let recognition = null;
 function startVoiceInput() {
     // Важно за iOS: Това се изпълнява директно в onclick handler
     console.log('[Гласово въвеждане] startVoiceInput е извикан от клик');
+    console.log('[Гласово въвеждане] window.webkitSpeechRecognition:', window.webkitSpeechRecognition);
+    console.log('[Гласово въвеждане] window.SpeechRecognition:', window.SpeechRecognition);
     console.log('[Гласово въвеждане] navigator.mediaDevices:', navigator.mediaDevices);
+    console.log('[Гласово въвеждане] navigator.userAgent:', navigator.userAgent);
+    
     if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
         navigator.mediaDevices.enumerateDevices().then(devices => {
             console.log('[Гласово въвеждане] Налични устройства:', devices);
@@ -1177,8 +1181,11 @@ function startVoiceInput() {
     // Ако има активен recognition, спираме го
     if (recognition) {
         try {
+            console.log('[Гласово въвеждане] Спирам стар recognition');
             recognition.stop();
-        } catch (e) {}
+        } catch (e) {
+            console.error('[Гласово въвеждане] Грешка при спиране на recognition:', e);
+        }
         recognition = null;
     }
     
@@ -1191,7 +1198,7 @@ function startVoiceInput() {
         SpeechRecognition = window.SpeechRecognition;
         console.log('[Гласово въвеждане] Използваме стандартния SpeechRecognition');
     } else {
-        alert('Вашият браузър не поддържа гласово разпознаване!');
+        alert('Гласовото въвеждане не се поддържа от браузъра в момента. Моля, използвайте Chrome на компютър.');
         return;
     }
     
@@ -1219,30 +1226,40 @@ function startVoiceInput() {
     });
     
     recognition.onstart = function() {
-        console.log('[Гласово въвеждане] Разпознаването стартира');
+        console.log('[Гласово въвеждане] ✅ onstart: Разпознаването стартира!');
         document.getElementById('voice-status').innerText = '🎤 Слушам... Говорете!';
         document.getElementById('voice-status').style.background = '#d1fae5';
     };
     
     recognition.onresult = function(event) {
-        console.log('[Гласово въвеждане] onresult събитие', event);
+        console.log('[Гласово въвеждане] ✅ onresult събитие получено');
+        console.log('[Гласово въвеждане] Цял event:', event);
+        console.log('[Гласово въвеждане] event.results:', event.results);
+        console.log('[Гласово въвеждане] event.resultIndex:', event.resultIndex);
+        
         let transcript = '';
         for (let i = event.resultIndex; i < event.results.length; i++) {
+            console.log('[Гласово въвеждане] result['+i+']:', event.results[i]);
             if (event.results[i].isFinal) {
                 transcript += event.results[i][0].transcript + ' ';
             }
         }
         
         if (transcript.trim()) {
-            console.log('[Гласово въвеждане] Разпознато:', transcript);
+            console.log('[Гласово въвеждане] Разпознато текст:', transcript);
             parseVoiceCommand(transcript.trim());
         }
     };
     
     recognition.onerror = function(event) {
-        console.error('[Гласово въвеждане] Грешка при разпознаване!');
-        console.error('[Гласово въвеждане] - event.error:', event.error);
-        console.error('[Гласово въвеждане] - Цял event:', event);
+        console.error('[Гласово въвеждане] ❌ onerror събитие!');
+        console.error('[Гласово въвеждане] Цял event обект:', event);
+        console.error('[Гласово въвеждане] event.error:', event.error);
+        console.error('[Гласово въвеждане] event.message:', event.message);
+        console.error('[Гласово въвеждане] Всички свойства на event:');
+        for (let key in event) {
+            console.error('[Гласово въвеждане]  - ' + key + ':', event[key]);
+        }
         
         let errorMessage = '❌ Грешка при разпознаване!';
         
@@ -1263,10 +1280,42 @@ function startVoiceInput() {
     };
     
     recognition.onend = function() {
-        console.log('[Гласово въвеждане] Разпознаването приключи');
+        console.log('[Гласово въвеждане] ⚠️ onend: Разпознаването приключи');
         document.getElementById('voice-status').innerText = 'Завърших! Ако искаш да добавяш още, натисни бутона отново.';
         document.getElementById('voice-status').style.background = '#e0f2fe';
     };
+    
+    // Добавяме допълнителни събития за повече дебъг
+    if (typeof recognition.onaudiostart !== 'undefined') {
+        recognition.onaudiostart = function() {
+            console.log('[Гласово въвеждане] ✅ onaudiostart: Аудиото поток стартира');
+        };
+    }
+    if (typeof recognition.onaudioend !== 'undefined') {
+        recognition.onaudioend = function() {
+            console.log('[Гласово въвеждане] ⚠️ onaudioend: Аудиото поток приключи');
+        };
+    }
+    if (typeof recognition.onsoundstart !== 'undefined') {
+        recognition.onsoundstart = function() {
+            console.log('[Гласово въвеждане] ✅ onsoundstart: Звук е открит');
+        };
+    }
+    if (typeof recognition.onsoundend !== 'undefined') {
+        recognition.onsoundend = function() {
+            console.log('[Гласово въвеждане] ⚠️ onsoundend: Звукът приключи');
+        };
+    }
+    if (typeof recognition.onspeechstart !== 'undefined') {
+        recognition.onspeechstart = function() {
+            console.log('[Гласово въвеждане] ✅ onspeechstart: Глас е открит');
+        };
+    }
+    if (typeof recognition.onspeechend !== 'undefined') {
+        recognition.onspeechend = function() {
+            console.log('[Гласово въвеждане] ⚠️ onspeechend: Гласът приключи');
+        };
+    }
     
     // 1. Първо искаме достъп до микрофона (това принуждава iOS да покаже диалог)
     console.log('[Гласово въвеждане] Изискваме достъп до микрофона...');
