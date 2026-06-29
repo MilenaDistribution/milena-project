@@ -1212,33 +1212,64 @@ function showPassArea() {
 // Логика за цените
 function rndPrices() {
     let container = document.getElementById('price-list');
-    if (!container) return; // Ако страницата не е заредена, спираме
+    if (!container) return;
     container.innerHTML = '';
     
-    // ВАЖНО: Ако db.prices е undefined, работим с празен обект {}
     let prices = db.prices || {};
     
     console.log('=== rndPrices(): db.prices СЪДЪРЖАНИЕ =', prices);
     
-    // Итерация с Object.entries, за да вземем и ключ (името), и стойност (цената)
     Object.entries(prices).forEach(([artName, price]) => {
         
-        // Проверка дали price е число
+        // Засигуряваме цената
         if (typeof price !== 'number') {
             price = 0;
         }
         
-        let displayName = artName && artName.trim() !== "" ? artName : 'Неизвестен артикул';
+        let displayName = artName || 'Неизвестен артикул';
+        let priceText = price.toFixed(2);
         
-        console.log(`  -> rndPrices(): artName = ${displayName}, price = ${price}`);
+        console.log(`  -> rndPrices(): ЩЕ ПОКАЖЕМ: ${displayName} - ${priceText} €`);
         
-        container.innerHTML += `
-            <div class="money-row" style="display:flex; align-items:center; gap:10px; margin-bottom:5px;">
-                <label style="flex:1; font-weight:bold;">${displayName} - ${price.toFixed(2)} €</label>
-                <input type="number" step="0.01" id="price-${encodeURIComponent(artName)}" value="${price}" style="width: 80px;">
-                <button onclick="deleteArt('${encodeURIComponent(artName)}')" style="background:red; color:white; border:none; padding: 5px 10px; cursor:pointer;">X</button>
-            </div>
-        `;
+        // Създаваме div елемента
+        const itemDiv = document.createElement('div');
+        itemDiv.className = 'money-row';
+        itemDiv.style.display = 'flex';
+        itemDiv.style.alignItems = 'center';
+        itemDiv.style.gap = '10px';
+        itemDiv.style.marginBottom = '5px';
+        
+        // Създаваме label
+        const label = document.createElement('label');
+        label.style.flex = '1';
+        label.style.fontWeight = 'bold';
+        label.innerHTML = displayName + ' - ' + priceText + ' €';
+        
+        // Създаваме input
+        const input = document.createElement('input');
+        input.type = 'number';
+        input.step = '0.01';
+        input.id = 'price-' + encodeURIComponent(artName);
+        input.value = price;
+        input.style.width = '80px';
+        
+        // Създаваме delete бутон
+        const deleteBtn = document.createElement('button');
+        deleteBtn.innerHTML = 'X';
+        deleteBtn.style.background = 'red';
+        deleteBtn.style.color = 'white';
+        deleteBtn.style.border = 'none';
+        deleteBtn.style.padding = '5px 10px';
+        deleteBtn.style.cursor = 'pointer';
+        deleteBtn.onclick = function() { deleteArt(encodeURIComponent(artName)); };
+        
+        // Добавяме всички към itemDiv
+        itemDiv.appendChild(label);
+        itemDiv.appendChild(input);
+        itemDiv.appendChild(deleteBtn);
+        
+        // Добавяме itemDiv към контейнера
+        container.appendChild(itemDiv);
     });
 }
 
