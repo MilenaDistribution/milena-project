@@ -1161,7 +1161,18 @@ function closeCalc() { document.getElementById('calc-modal').style.display = 'no
 let voiceItems = [];
 let recognition = null;
 
-async function startVoiceInput() {
+function startVoiceInput() {
+    // Важно за iOS: Това се изпълнява директно в onclick handler
+    console.log('[Гласово въвеждане] startVoiceInput е извикан от клик');
+    console.log('[Гласово въвеждане] navigator.mediaDevices:', navigator.mediaDevices);
+    if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
+        navigator.mediaDevices.enumerateDevices().then(devices => {
+            console.log('[Гласово въвеждане] Налични устройства:', devices);
+        }).catch(err => {
+            console.error('[Гласово въвеждане] enumerateDevices грешка:', err);
+        });
+    }
+    
     voiceItems = [];
     // Ако има активен recognition, спираме го
     if (recognition) {
@@ -1170,12 +1181,6 @@ async function startVoiceInput() {
         } catch (e) {}
         recognition = null;
     }
-    
-    document.getElementById('voice-modal').style.display = 'block';
-    document.getElementById('voice-status').innerText = 'Проверявам микрофона...';
-    document.getElementById('voice-status').style.background = '#fee2e2';
-    document.getElementById('voice-preview').innerHTML = '<p style="color:#64748b;">Няма разпознати данни все още...</p>';
-    document.getElementById('voice-total').innerText = 'Общо: 0.00 €';
     
     // Проверка за поддръжка на Web Speech API - първо webkit за Safari
     let SpeechRecognition = null;
@@ -1187,34 +1192,15 @@ async function startVoiceInput() {
         console.log('[Гласово въвеждане] Използваме стандартния SpeechRecognition');
     } else {
         alert('Вашият браузър не поддържа гласово разпознаване!');
-        closeVoiceModal();
         return;
     }
     
-    // Проверка и заявка за достъп до микрофона (задължително за iOS)
-    try {
-        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-            console.log('[Гласово въвеждане] Изискваме достъп до микрофона...');
-            await navigator.mediaDevices.getUserMedia({ audio: true });
-            console.log('[Гласово въвеждане] Достъп до микрофона разрешен');
-        }
-    } catch (err) {
-        console.error('[Гласово въвеждане] Грешка с микрофон:', err);
-        console.error('[Гласово въвеждане] Име на грешка:', err.name);
-        console.error('[Гласово въвеждане] Съобщение:', err.message);
-        
-        let message = 'Микрофонът е блокиран. Моля, разрешете достъпа от настройките на браузъра си!';
-        if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-            message = 'Микрофонът е блокиран. Моля, разрешете достъпа от настройките на браузъра си!';
-        } else if (err.name === 'NotFoundError') {
-            message = 'Не е открит микрофон! Моля, проверете дали устройството има микрофон.';
-        } else if (err.name === 'NotReadableError') {
-            message = 'Микрофонът е зает от друго приложение!';
-        }
-        alert(message);
-        closeVoiceModal();
-        return;
-    }
+    // Показваме модала
+    document.getElementById('voice-modal').style.display = 'block';
+    document.getElementById('voice-status').innerText = 'Стартирам...';
+    document.getElementById('voice-status').style.background = '#fee2e2';
+    document.getElementById('voice-preview').innerHTML = '<p style="color:#64748b;">Няма разпознати данни все още...</p>';
+    document.getElementById('voice-total').innerText = 'Общо: 0.00 €';
     
     // Създаваме НОВ обект за разпознаване (не преизползваме стария!)
     console.log('[Гласово въвеждане] Създаваме нов SpeechRecognition обект');
@@ -1261,7 +1247,7 @@ async function startVoiceInput() {
         let errorMessage = '❌ Грешка при разпознаване!';
         
         if (event.error === 'service-not-allowed') {
-            errorMessage = '❌ Гласовите услуги не са разрешени! Моля, проверете настройките на iOS.';
+            errorMessage = '❌ Гласовите услуги не са разрешени! Моля, проверете настройките на iOS (Настройки → Общи → Клавиатура → Включи "Диктат").';
         } else if (event.error === 'not-allowed') {
             errorMessage = '❌ Моля, разрешете достъпа до микрофона!';
         } else if (event.error === 'no-speech') {
@@ -1282,16 +1268,50 @@ async function startVoiceInput() {
         document.getElementById('voice-status').style.background = '#e0f2fe';
     };
     
-    // Опитваме се да стартираме разпознаването с try-catch
-    try {
-        console.log('[Гласово въвеждане] Стартираме recognition.start()...');
-        recognition.start();
-    } catch (err) {
-        console.error('[Гласово въвеждане] Грешка при стартиране:', err);
-        console.error('[Гласово въвеждане] - Име:', err.name);
-        console.error('[Гласово въвеждане] - Съобщение:', err.message);
-        alert('Грешка при стартиране на гласовото разпознаване: ' + err.message);
-        closeVoiceModal();
+    // 1. Първо искаме достъп до микрофона (това принуждава iOS да покаже диалог)
+    console.log('[Гласово въвеждане] Изискваме достъп до микрофона...');
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        navigator.mediaDevices.getUserMedia({ audio: true })
+            .then(function(stream) {
+                console.log('[Гласово въвеждане] Достъп до микрофона разрешен! Stream:', stream);
+                
+                // 2. Веднага след като получим достъп, стартираме recognition
+                console.log('[Гласово въвеждане] Стартираме recognition.start()...');
+                try {
+                    recognition.start();
+                    console.log('[Гласово въвеждане] recognition.start() е извикан успешно!');
+                } catch (err) {
+                    console.error('[Гласово въвеждане] Грешка при recognition.start():', err);
+                    alert('Грешка при стартиране на гласовото разпознаване: ' + err.message);
+                    closeVoiceModal();
+                }
+            })
+            .catch(function(err) {
+                console.error('[Гласово въвеждане] Грешка при getUserMedia:', err);
+                console.error('[Гласово въвеждане] Име на грешка:', err.name);
+                console.error('[Гласово въвеждане] Съобщение:', err.message);
+                
+                let message = 'Микрофонът е блокиран. Моля, разрешете достъпа от настройките на браузъра си!';
+                if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                    message = 'Микрофонът е блокиран. Моля, разрешете достъпа от настройките на браузъра си!';
+                } else if (err.name === 'NotFoundError') {
+                    message = 'Не е открит микрофон! Моля, проверете дали устройството има микрофон.';
+                } else if (err.name === 'NotReadableError') {
+                    message = 'Микрофонът е зает от друго приложение!';
+                }
+                alert(message);
+                closeVoiceModal();
+            });
+    } else {
+        // Ако нямаме getUserMedia, опитваме директно
+        console.log('[Гласово въвеждане] getUserMedia не е наличен, опитваме директно start()');
+        try {
+            recognition.start();
+        } catch (err) {
+            console.error('[Гласово въвеждане] Грешка при стартиране:', err);
+            alert('Грешка при стартиране на гласовото разпознаване: ' + err.message);
+            closeVoiceModal();
+        }
     }
 }
 
