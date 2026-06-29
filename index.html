@@ -1297,21 +1297,41 @@ function closeCalc() { document.getElementById('calc-modal').style.display = 'no
 let voiceItems = [];
 let recognition = null;
 
-function startVoiceInput() {
+async function startVoiceInput() {
     voiceItems = [];
     document.getElementById('voice-modal').style.display = 'block';
-    document.getElementById('voice-status').innerText = 'Слушам... Моля, кажете вашите записи!';
+    document.getElementById('voice-status').innerText = 'Проверявам микрофона...';
     document.getElementById('voice-status').style.background = '#fee2e2';
     document.getElementById('voice-preview').innerHTML = '<p style="color:#64748b;">Няма разпознати данни все още...</p>';
     document.getElementById('voice-total').innerText = 'Общо: 0.00 €';
     
-    // Инициализираме Web Speech API
+    // Проверка за поддръжка на Web Speech API
     if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
         alert('Вашият браузър не поддържа гласово разпознаване!');
         closeVoiceModal();
         return;
     }
     
+    // Проверка и заявка за достъп до микрофона (особено за iOS)
+    try {
+        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+            await navigator.mediaDevices.getUserMedia({ audio: true });
+            console.log('[Гласово въвеждане] Достъп до микрофона разрешен');
+        }
+    } catch (err) {
+        console.error('[Гласово въвеждане] Грешка с микрофон:', err);
+        let message = 'Микрофонът е блокиран. Моля, разрешете достъпа от настройките на браузъра си!';
+        if (err.name === 'NotAllowedError') {
+            message = 'Микрофонът е блокиран. Моля, разрешете достъпа от настройките на браузъра си!';
+        } else if (err.name === 'NotFoundError') {
+            message = 'Не е открит микрофон! Моля, проверете дали устройството има микрофон.';
+        }
+        alert(message);
+        closeVoiceModal();
+        return;
+    }
+    
+    // Инициализираме Web Speech API
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     recognition = new SpeechRecognition();
     recognition.lang = 'bg-BG';
@@ -1338,8 +1358,20 @@ function startVoiceInput() {
     };
     
     recognition.onerror = function(event) {
-        console.error('[Гласово въвеждане] Грешка:', event.error);
-        document.getElementById('voice-status').innerText = '❌ Грешка при разпознаване!';
+        console.error('[Гласово въвеждане] Грешка при разпознаване:', event.error);
+        let errorMessage = '❌ Грешка при разпознаване!';
+        
+        if (event.error === 'not-allowed') {
+            errorMessage = '❌ Моля, разрешете достъпа до микрофона!';
+        } else if (event.error === 'no-speech') {
+            errorMessage = '❌ Не беше засечено гласово въвеждане!';
+        } else if (event.error === 'audio-capture') {
+            errorMessage = '❌ Не е открит микрофон!';
+        } else {
+            errorMessage = '❌ Грешка: ' + event.error;
+        }
+        
+        document.getElementById('voice-status').innerText = errorMessage;
         document.getElementById('voice-status').style.background = '#fee2e2';
     };
     
@@ -1348,7 +1380,14 @@ function startVoiceInput() {
         document.getElementById('voice-status').style.background = '#e0f2fe';
     };
     
-    recognition.start();
+    // Опитваме се да стартираме разпознаването с try-catch
+    try {
+        recognition.start();
+    } catch (err) {
+        console.error('[Гласово въвеждане] Грешка при стартиране:', err);
+        alert('Грешка при стартиране на гласовото разпознаване: ' + err.message);
+        closeVoiceModal();
+    }
 }
 
 function parseVoiceCommand(text) {
