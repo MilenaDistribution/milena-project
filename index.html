@@ -1302,38 +1302,16 @@ function calcTotal() {
 
 function closeCalc() { document.getElementById('calc-modal').style.display = 'none'; }
 
-// Помощна функция за НОРМАЛИЗАЦИЯ на думи
-function normalizeText(text) {
+// ПРОСТА функция за НОРМАЛИЗАЦИЯ - само малки букви и без спец. символи
+function simpleNormalize(text) {
     if (!text) return '';
+    // Малки букви
     let normalized = text.toLowerCase().trim();
-    // Премахваме пунктуация
-    normalized = normalized.replace(/[.,!?;:"']/g, '');
-    // Премахваме меки/твърди знаци
-    normalized = normalized.replace(/[ъьь]/g, '');
-    // Премахваме често срещани окончания
-    normalized = normalized.replace(/(а|я|и|е|о|у|ъ|й)$/g, '');
+    // Премахваме ВСИЧКИ специални символи и пунктуация
+    normalized = normalized.replace(/[^a-zа-я0-9\s]/g, '');
     // Премахваме повтарящи се интервали
     normalized = normalized.replace(/\s+/g, ' ');
     return normalized;
-}
-
-// Помощна функция за ПО-ДОБРО "fuzzy" търсене с частично съвпадение
-function fuzzyMatch(text1, text2) {
-    const t1 = normalizeText(text1);
-    const t2 = normalizeText(text2);
-    
-    // Проверка за пълно съвпадение
-    if (t1 === t2) return true;
-    // Проверка за частично съвпадение (включва)
-    if (t1.includes(t2) || t2.includes(t1)) return true;
-    // Проверка с ПЪРВИТЕ 3-4 БУКВИ
-    const minLen = Math.min(4, Math.min(t1.length, t2.length));
-    if (minLen >= 3) {
-        const t1Start = t1.substring(0, minLen);
-        const t2Start = t2.substring(0, minLen);
-        if (t1Start === t2Start) return true;
-    }
-    return false;
 }
 
 // AI Асистент функция - НОВА, ИНТЕЛИГЕНТНА ЛОГИКА
@@ -1352,12 +1330,15 @@ function processAiCommand() {
         return;
     }
     
-    // ЛОГВАНЕ на всички налични артикули в конзолата
-    console.log('====== [AI Асистент] Налични артикули в ЦЕНИТЕ ======');
+    // СЪЗДАВАМЕ СИСЦИ СЪС СЪСТАНОВЕ ЦЕНИТЕ (нормализирани)
+    const normalizedPrices = {};
+    console.log('====== [AI Асистент] НАЛИЧНИ АРТИКУЛИ ======');
     Object.keys(db.prices).forEach(artName => {
-        console.log(`- ${artName} (цена: ${db.prices[artName]}, нормализирано: ${normalizeText(artName)})`);
+        const normName = simpleNormalize(artName);
+        normalizedPrices[normName] = { original: artName, price: db.prices[artName] };
+        console.log(`- ${artName} (нормализирано: ${normName})`);
     });
-    console.log('=====================================================');
+    console.log('==============================================');
     
     if (!db.flds.plus || db.flds.plus.length === 0) {
         alert('Моля, първо добавете полета в "ПЛЮСОВЕ" в раздел "Отчет"!');
@@ -1372,15 +1353,21 @@ function processAiCommand() {
     const targetMatch = text.match(/за\s+(.+?)(?:[,;.и]|$)/i);
     if (targetMatch) {
         targetName = targetMatch[1].trim();
-        console.log('[AI Асистент] Намерена целева група:', targetName);
+        console.log(`[AI Асистент] Търсе целева група: "${targetName}"`);
         
-        // Търсим точно полето в ПЛЮСОВЕ
-        targetField = db.flds.plus.find(field => 
-            fuzzyMatch(field.l.replace(' (€)', ''), targetName)
-        );
+        // Нормализираме целевия текст за търсене
+        const normTarget = simpleNormalize(targetName);
+        
+        // Търсим полето в ПЛЮСОВЕ
+        targetField = db.flds.plus.find(field => {
+            const fieldName = simpleNormalize(field.l.replace(' (€)', ''));
+            return fieldName.includes(normTarget) || normTarget.includes(fieldName);
+        });
         
         if (!targetField) {
-            alert(`Не мога да намеря поле с име като "${targetName}" в "ПЛЮСОВЕ"!`);
+            const availableFields = db.flds.plus.map(f => f.l.replace(' (€)', '')).join(', ');
+            console.log(`[AI Асистент] ❌ Няма поле "${targetName}"! Налични полета: ${availableFields}`);
+            alert(`Не мога да намеря поле с име като "${targetName}"! Налични полета: ${availableFields}`);
             return;
         }
         
@@ -1396,7 +1383,6 @@ function processAiCommand() {
     const parts = textWithoutTarget.split(/[,;.и]/).map(p => p.trim()).filter(p => p.length > 0);
     
     const foundItems = [];
-    const missingPrices = [];
     
     parts.forEach(part => {
         // Търсим число и артикул
@@ -1404,47 +1390,40 @@ function processAiCommand() {
         if (!match) return;
         
         const quantity = parseInt(match[1]);
-        const searchText = match[2].trim();
+        const rawSearchText = match[2].trim();
+        const searchText = simpleNormalize(rawSearchText);
         
-        let matchedArt = null;
-        let artPrice = 0;
+        console.log(`[AI Асистент] Търся артикул за: "${rawSearchText}" (нормализирано: "${searchText}")`);
         
-        console.log(`[AI Асистент] Търся артикул за: "${searchText}" (нормализирано: "${normalizeText(searchText)}")`);
+        let matchedArtData = null;
         
-        // Търсим артикула в ЦЕНИТЕ с fuzzy match
-        Object.keys(db.prices).forEach(artName => {
-            const isMatch = fuzzyMatch(artName, searchText);
-            if (isMatch) {
-                matchedArt = artName;
-                artPrice = db.prices[artName];
-                console.log(`[AI Асистент] ✅ НАМЕРЕН! Артикул: "${artName}" (цена: ${artPrice})`);
+        // ТЪРСЕНЕ С includes() ВСЕКИ АРТИКУЛ
+        for (const normArtName in normalizedPrices) {
+            const artData = normalizedPrices[normArtName];
+            // Проверяваме дали searchText ВКЛЮЧВА някоя дума от артикула или обратно
+            if (normArtName.includes(searchText) || searchText.includes(normArtName)) {
+                matchedArtData = artData;
+                console.log(`[AI Асистент] ✅ НАМЕРЕН! Артикул: "${artData.original}" (цена: ${artData.price})`);
+                break; // Вземаме първото намерено
             }
-        });
-        
-        if (!matchedArt) {
-            console.log(`[AI Асистент] ❌ Няма съвпадение за "${searchText}"`);
         }
         
-        if (matchedArt) {
+        if (matchedArtData) {
             foundItems.push({
-                name: matchedArt,
+                name: matchedArtData.original,
                 quantity: quantity,
-                price: artPrice,
-                total: quantity * artPrice
+                price: matchedArtData.price,
+                total: quantity * matchedArtData.price
             });
         } else {
-            missingPrices.push(searchText);
+            const availableArts = Object.keys(normalizedPrices).map(key => normalizedPrices[key].original).join(', ');
+            console.log(`[AI Асистент] ❌ Търсих за: "${rawSearchText}", но намерих само: ${availableArts}`);
         }
     });
     
-    // Проверка за грешки
-    if (missingPrices.length > 0) {
-        alert(`Не мога да намеря цена за: ${missingPrices.join(', ')}\n\nМоля, добавете ги в раздел "Цени"!`);
-        return;
-    }
-    
     if (foundItems.length === 0) {
-        alert('Няма намерени артикули! Моля, опитайте отново!');
+        console.log('[AI Асистент] Няма намерени артикули!');
+        alert('Няма намерени артикули! Моля, опитайте отново и проверете конзолата!');
         return;
     }
     
