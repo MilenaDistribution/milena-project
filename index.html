@@ -73,6 +73,7 @@
 </head>
 <body>
     <div id="conn-status" class="online" title="Онлайн"></div>
+
     <div id="login-screen" style="display: flex; flex-direction: column; align-items: center; justify-content: center;">
         <div class="login-card">
             <h3>Вход в системата</h3>
@@ -94,6 +95,14 @@
         Хляб "Милена" (<span id="user-title">...</span>)
         <button class="logout-btn" onclick="logout()">Изход</button>
     </header>
+    
+    <!-- AI Асистент - видим само след логин -->
+    <div id="ai-assistant" class="card" style="margin:10px; padding:15px; background:#f0f9ff; display:none;">
+        <h2 style="font-size:16px; color:#0284c7; margin-bottom:10px;">🤖 AI Асистент</h2>
+        <textarea id="ai-input" placeholder="Диктувай тук: Например: 50 бели хляба, 20 тъмни, 30 основен..." style="width:100%; height:100px; border:1px solid #cbd5e1; border-radius:8px; padding:10px; font-size:16px; resize:none; margin-bottom:10px;"></textarea>
+        <button onclick="processAiCommand()" style="width:100%; padding:12px; background:#0284c7; color:white; border:none; border-radius:8px; font-size:16px; font-weight:bold; cursor:pointer;">⚡ Изпълни команда</button>
+    </div>
+    
     <nav class="nav-bar">
         <button class="nav-item active" onclick="swPg('kasi', this)"><span>📦 КАСИ</span></button>
         <button class="nav-item" onclick="swPg('otchet', this)"><span>💶 ОТЧЕТ</span></button>
@@ -135,7 +144,6 @@
             <div class="total-box bg-win">За отчитане: <span id="fin-tot">0.00</span> €</div>
             <button onclick="copyToViber()" class="btn-viber">📋 Копирай отчета за Viber</button>
             <button onclick="openCalc()" class="btn-secondary" style="margin-bottom:10px; background:#eab308;">🧮 Калкулатор товарителница</button>
-            <button onclick="startVoiceInput()" class="btn-secondary" style="margin-bottom:10px; background:#7360f2;">🎤 Гласово въвеждане</button>
             <div class="card">
                 <h2>➕ ПЛЮСОВЕ (Приходи)</h2>
                 <div id="p-lst"></div>
@@ -263,10 +271,16 @@
                     return;
                 }
                 console.log('[Milena] Стартиране на enableIndexedDbPersistence (локален IndexedDB кеш за RTDB)...');
-                const request = indexedDB.open('milena-rtdb-offline', 1);
+                const request = indexedDB.open('milena-rtdb-offline', 2);
                 request.onerror = function() { reject(request.error); };
                 request.onupgradeneeded = function(e) {
-                    e.target.result.createObjectStore('users', { keyPath: 'userId' });
+                    const db = e.target.result;
+                    if (!db.objectStoreNames.contains('users')) {
+                        db.createObjectStore('users', { keyPath: 'userId' });
+                    }
+                    if (!db.objectStoreNames.contains('unsyncedReports')) {
+                        db.createObjectStore('unsyncedReports', { keyPath: 'id' });
+                    }
                 };
                 request.onsuccess = function() {
                     idbDb = request.result;
@@ -337,6 +351,40 @@
             });
         }
 
+        function saveUnsyncedReport(userId, report) {
+            return new Promise(function(resolve, reject) {
+                if (!idbDb) { resolve(); return; }
+                const tx = idbDb.transaction('unsyncedReports', 'readwrite');
+                tx.objectStore('unsyncedReports').put({ id: report.id, userId: userId, report: report, createdAt: Date.now() });
+                tx.oncomplete = function() { resolve(); };
+                tx.onerror = function() { reject(tx.error); };
+            });
+        }
+
+        function getAllUnsyncedReports(userId) {
+            return new Promise(function(resolve, reject) {
+                if (!idbDb) { resolve([]); return; }
+                const tx = idbDb.transaction('unsyncedReports', 'readonly');
+                const store = tx.objectStore('unsyncedReports');
+                const req = store.getAll();
+                req.onsuccess = function() { 
+                    const reports = req.result.filter(r => r.userId === userId);
+                    resolve(reports.map(r => r.report));
+                };
+                req.onerror = function() { reject(req.error); };
+            });
+        }
+
+        function deleteUnsyncedReport(reportId) {
+            return new Promise(function(resolve, reject) {
+                if (!idbDb) { resolve(); return; }
+                const tx = idbDb.transaction('unsyncedReports', 'readwrite');
+                tx.objectStore('unsyncedReports').delete(reportId);
+                tx.oncomplete = function() { resolve(); };
+                tx.onerror = function() { reject(tx.error); };
+            });
+        }
+
         function updateConnStatus() {
             const el = document.getElementById('conn-status');
             if (!el) return;
@@ -349,43 +397,91 @@
 
 
 
-        window.syncData = async function() {
-            console.log('[Milena] Стартиране на syncData...');
+        function syncData() {
+            // Правим функцията да може да се извика и без currentUser, но ще чака
             if (!navigator.onLine) {
-                console.log('[Milena] Офлайн, пропускам синхронизация.');
+                console.log('[Milena] Все още офлайн - синхронизацията ще се изпълни по-късно.');
                 return;
             }
             if (!currentUser) {
-                console.log('[Milena] Няма текущ потребител, пропускам.');
-                return;
-            }
-            if (!db || Object.keys(db).length === 0) {
-                console.log('[Milena] Няма данни за синхронизация, пропускам.');
+                console.log('[Milena] Потребителят все още не е логнат - синхронизацията ще се изпълни по-късно.');
                 return;
             }
             
-            try {
-                console.log('[Milena] Синхронизирам данни към Firebase...');
-                await whenDbReady(function() {
-                    return rtdbSet(dbRef(currentUser), db);
+            console.log('[Milena] Стартиране на синхронизация...');
+            
+            // Първо проверяваме дали имаме не синхронизирани отчети
+            getAllUnsyncedReports(currentUser)
+            .then(function(unsyncedReports) {
+                console.log('[Milena] Намерени ' + unsyncedReports.length + ' не синхронизирани отчета.');
+                
+                if (unsyncedReports.length === 0) {
+                    console.log('[Milena] Няма не синхронизирани отчети - спираме синхронизацията.');
+                    return;
+                }
+                
+                // Зареждаме пълните данни от кеша
+                return readCachedUserData(currentUser)
+                .then(function(cached) {
+                    if (cached) {
+                        db = cached;
+                        normalizeDb();
+                        rnd();
+                    }
+                    
+                    // Качваме данните във Firebase
+                    console.log('[Milena] Качване на данни във Firebase...');
+                    return rtdbSet(dbRef(currentUser), db)
+                    .then(function() {
+                        console.log('[Milena] ✅ Данните са качени успешно във Firebase!');
+                        
+                        // Изтриваме отчетите един по един
+                        console.log('[Milena] Изтриване на ' + unsyncedReports.length + ' отчета от локалния кеш...');
+                        const deletePromises = unsyncedReports.map(function(report) {
+                            console.log('[Milena] Изтриване на отчет с ID: ' + report.id);
+                            return deleteUnsyncedReport(report.id);
+                        });
+                        
+                        return Promise.all(deletePromises);
+                    });
+                })
+                .then(function() {
+                    console.log('[Milena] ✅ Всички не синхронизирани отчети са обработени и изтрити!');
                 });
-                console.log('[Milena] ✅ Синхронизация успешна!');
-            } catch (err) {
+            })
+            .catch(function(err) {
                 console.error('[Milena] ❌ Грешка при синхронизация:', err);
-            }
+                // Опитваме се отново след 5 секунди
+                console.log('[Milena] Опитваме се отново след 5 секунди...');
+                setTimeout(syncData, 5000);
+            });
         }
 
         window.addEventListener('online', function() {
             updateConnStatus();
+            console.log('[Milena] Връзката се възстанови - синхронизиране...');
             syncData();
         });
         window.addEventListener('offline', updateConnStatus);
+
+        // Слушател за зареждане на страницата
+        window.addEventListener('load', function() {
+            console.log('[Milena] Страницата е заредена - проверка за синхронизация...');
+            if (navigator.onLine && currentUser) {
+                syncData();
+            }
+        });
 
         whenDbReady(function() {
             onValue(dbRef('.info/connected'), function() {
                 updateConnStatus();
             });
             updateConnStatus();
+            
+            // Проверка за не синхронизирани отчети при стартиране на приложението
+            if (navigator.onLine) {
+                console.log('[Milena] Приложението е онлайн при стартиране - ще се провери за не синхронизирани отчети след логин.');
+            }
         });
 
         window.rtdb = rtdb;
@@ -396,6 +492,10 @@
         window.whenDbReady = whenDbReady;
         window.cacheUserData = cacheUserData;
         window.readCachedUserData = readCachedUserData;
+        window.saveUnsyncedReport = saveUnsyncedReport;
+        window.getAllUnsyncedReports = getAllUnsyncedReports;
+        window.deleteUnsyncedReport = deleteUnsyncedReport;
+        window.syncData = syncData;
         window.persistenceActive = function() { return persistenceActive; };
     </script>
 
@@ -454,15 +554,17 @@
     let p = document.getElementById('user-pass').value;
     if (p === PASSWORDS[currentUser]) {
         document.getElementById('login-screen').style.display = 'none';
+        document.getElementById('ai-assistant').style.display = 'block'; // Показваме AI Асистента
         document.getElementById('user-title').innerText = currentUser.toUpperCase();
         loadData();
-        // След зареждане на данните, ако сме онлайн - синхронизираме
-        setTimeout(() => {
-            if (navigator.onLine && window.syncData) {
-                console.log('[Milena] Логин успешен, проверявам за синхронизация...');
-                window.syncData();
-            }
-        }, 1000);
+        // Веднага след логин, ако сме онлайн - синхронизираме
+        if (navigator.onLine) {
+            console.log('[Milena] Потребителят е логнат и сме онлайн - синхронизиране...');
+            // Изчакваме данните да се заредят, после синхронизираме
+            setTimeout(function() {
+                syncData();
+            }, 2000);
+        }
     } else { 
         alert('Грешна парола!'); 
     }
@@ -480,6 +582,7 @@
         }
     }
     document.getElementById('login-screen').style.display = 'flex'; 
+    document.getElementById('ai-assistant').style.display = 'none'; // Скриваме AI Асистента
     document.getElementById('user-select').selectedIndex = 0;
     document.getElementById('pass-area').style.display = 'none';
     document.getElementById('user-pass').value = '';
@@ -513,17 +616,33 @@
 
         function loadData() {
     whenDbReady(function() {
-        // Офлайн-първо (offline-first): Проверяваме дали кешът има данни
-        readCachedUserData(currentUser)
-        .then(function(cached) {
+        // Офлайн-първо (offline-first): Проверяваме дали кешът има данни и не синхронизираните отчети
+        Promise.all([
+            readCachedUserData(currentUser),
+            getAllUnsyncedReports(currentUser)
+        ])
+        .then(function([cached, unsyncedReports]) {
             if (cached) {
                 db = cached;
                 console.log('[Milena] ✅ Данни заредени първоначално от локален IndexedDB кеш.');
-                normalizeDb();
-                rnd();
             } else {
                 console.log('[Milena] Локалният кеш е празен. Принудителен fetch от Firebase сървъра...');
             }
+            
+            normalizeDb();
+            
+            // Добавяме не синхронизираните отчети към db.history
+            if (unsyncedReports && unsyncedReports.length > 0) {
+                if (!db.history) db.history = {};
+                unsyncedReports.forEach(report => {
+                    db.history[report.id] = report;
+                });
+                console.log('[Milena] ✅ Заредени ' + unsyncedReports.length + ' не синхронизирани отчета.');
+                // Кешираме отново с добавените отчети
+                cacheUserData(currentUser, db);
+            }
+            
+            rnd();
 
             // Изтегляме 'живите' данни от Firebase сървъра без да блокираме първоначалното показване
             return rtdbGet(dbRef(currentUser));
@@ -531,6 +650,15 @@
         .then(function(snapshot) {
             if (snapshot && snapshot.exists()) {
                 let data = snapshot.val();
+                // Обединяваме данните от Firebase с локалните, запазвайки не синхронизираните отчети
+                if (!data.history) data.history = {};
+                if (db.history) {
+                    Object.keys(db.history).forEach(key => {
+                        if (!data.history[key]) {
+                            data.history[key] = db.history[key];
+                        }
+                    });
+                }
                 db = data;
                 normalizeDb();
                 rnd();
@@ -546,16 +674,23 @@
             }
         })
         .catch(function(err) {
-            console.warn('[Milena] Неуспешно зареждане от Firebase сървъра (вероятно офлайн):', err);
-            // При грешка/офлайн, ако все още нямаме заредени данни (кешът е бил празен), зареждаме дефолтни
-            if (!db || Object.keys(db).length === 0) {
-                db = defData();
-                normalizeDb();
-                rnd();
-            }
+                console.warn('[Milena] Неуспешно зареждане от Firebase сървъра (вероятно офлайн):', err);
+                // При грешка/офлайн, ако все още нямаме заредени данни (кешът е бил празен), зареждаме дефолтни
+                if (!db || Object.keys(db).length === 0) {
+                    db = defData();
+                    normalizeDb();
+                    rnd();
+                }
+            })
+            .finally(function() {
+                // Ако сме онлайн, синхронизираме не синхронизираните отчети веднага
+                if (navigator.onLine && currentUser) {
+                    console.log('[Milena] Проверка и синхронизация на не синхронизирани отчети...');
+                    syncData();
+                }
+            });
         });
-    });
-}
+    }
 
         function sv() { 
             if (!currentUser) return;
@@ -657,11 +792,12 @@
             let total = (tp - tm).toFixed(2);
 
             if(!db.history) db.history = {};
-            db.history[histId] = {
+            const newReport = {
                 date: dateStr,
                 total: total,
                 snapshot: JSON.parse(JSON.stringify(db.flds))
             };
+            db.history[histId] = newReport;
 
             whenDbReady(function() {
                 // 1. Първо записваме в локалния IndexedDB кеш за офлайн сигурност
@@ -676,8 +812,17 @@
                             alert(`✅ Отчетът е записан успешно и архивиран за днес!\n💰 Сума: ${total} €`);
                         });
                     } else {
-                        // Офлайн режим: Оставяме отчета записан локално
-                        alert(`💾 Отчетът е записан ЛОКАЛНО (в очакване на интернет връзка за синхронизация).\n💰 Сума: ${total} €`);
+                        // Офлайн режим: Записваме отчета и в unsyncedReports
+                        const unsyncedReport = {
+                            id: histId,
+                            date: dateStr,
+                            total: total,
+                            snapshot: JSON.parse(JSON.stringify(db.flds))
+                        };
+                        return saveUnsyncedReport(currentUser, unsyncedReport)
+                        .then(function() {
+                            alert(`💾 Отчетът е записан ЛОКАЛНО и ще се синхронизира при връзка!\n💰 Сума: ${total} €`);
+                        });
                     }
                 })
                 .catch(function(err) {
@@ -1157,299 +1302,71 @@ function calcTotal() {
 
 function closeCalc() { document.getElementById('calc-modal').style.display = 'none'; }
 
-// ГЛАСОВО ВЪВЕЖДАНЕ
-let voiceItems = [];
-let recognition = null;
-
-function startVoiceInput() {
-    // Важно за iOS: Това се изпълнява директно в onclick handler
-    console.log('[Гласово въвеждане] startVoiceInput е извикан от клик');
-    console.log('[Гласово въвеждане] window.webkitSpeechRecognition:', window.webkitSpeechRecognition);
-    console.log('[Гласово въвеждане] window.SpeechRecognition:', window.SpeechRecognition);
-    console.log('[Гласово въвеждане] navigator.mediaDevices:', navigator.mediaDevices);
-    console.log('[Гласово въвеждане] navigator.userAgent:', navigator.userAgent);
+// AI Асистент функция
+function processAiCommand() {
+    const aiInput = document.getElementById('ai-input');
+    const text = aiInput.value.trim();
     
-    if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
-        navigator.mediaDevices.enumerateDevices().then(devices => {
-            console.log('[Гласово въвеждане] Налични устройства:', devices);
-        }).catch(err => {
-            console.error('[Гласово въвеждане] enumerateDevices грешка:', err);
-        });
-    }
-    
-    voiceItems = [];
-    // Ако има активен recognition, спираме го
-    if (recognition) {
-        try {
-            console.log('[Гласово въвеждане] Спирам стар recognition');
-            recognition.stop();
-        } catch (e) {
-            console.error('[Гласово въвеждане] Грешка при спиране на recognition:', e);
-        }
-        recognition = null;
-    }
-    
-    // Проверка за поддръжка на Web Speech API - първо webkit за Safari
-    let SpeechRecognition = null;
-    if ('webkitSpeechRecognition' in window) {
-        SpeechRecognition = window.webkitSpeechRecognition;
-        console.log('[Гласово въвеждане] Използваме webkitSpeechRecognition за Safari');
-    } else if ('SpeechRecognition' in window) {
-        SpeechRecognition = window.SpeechRecognition;
-        console.log('[Гласово въвеждане] Използваме стандартния SpeechRecognition');
-    } else {
-        alert('Гласовото въвеждане не се поддържа от браузъра в момента. Моля, използвайте Chrome на компютър.');
+    if (!text) {
+        alert('Моля, въведете или диктуйте текст!');
         return;
     }
     
-    // Показваме модала
-    document.getElementById('voice-modal').style.display = 'block';
-    document.getElementById('voice-status').innerText = 'Стартирам...';
-    document.getElementById('voice-status').style.background = '#fee2e2';
-    document.getElementById('voice-preview').innerHTML = '<p style="color:#64748b;">Няма разпознати данни все още...</p>';
-    document.getElementById('voice-total').innerText = 'Общо: 0.00 €';
-    
-    // Създаваме НОВ обект за разпознаване (не преизползваме стария!)
-    console.log('[Гласово въвеждане] Създаваме нов SpeechRecognition обект');
-    recognition = new SpeechRecognition();
-    
-    // Настройки специфични за Safari и iOS
-    recognition.lang = 'bg-BG'; // Ясно задаваме език
-    recognition.continuous = false; // За iOS по-добре е false, за да не гръмне
-    recognition.interimResults = true;
-    recognition.maxAlternatives = 1; // По-малко алтернативи = по-стабилно
-    
-    console.log('[Гласово въвеждане] Настройки:', {
-        lang: recognition.lang,
-        continuous: recognition.continuous,
-        interimResults: recognition.interimResults
-    });
-    
-    recognition.onstart = function() {
-        console.log('[Гласово въвеждане] ✅ onstart: Разпознаването стартира!');
-        document.getElementById('voice-status').innerText = '🎤 Слушам... Говорете!';
-        document.getElementById('voice-status').style.background = '#d1fae5';
-    };
-    
-    recognition.onresult = function(event) {
-        console.log('[Гласово въвеждане] ✅ onresult събитие получено');
-        console.log('[Гласово въвеждане] Цял event:', event);
-        console.log('[Гласово въвеждане] event.results:', event.results);
-        console.log('[Гласово въвеждане] event.resultIndex:', event.resultIndex);
-        
-        let transcript = '';
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-            console.log('[Гласово въвеждане] result['+i+']:', event.results[i]);
-            if (event.results[i].isFinal) {
-                transcript += event.results[i][0].transcript + ' ';
-            }
-        }
-        
-        if (transcript.trim()) {
-            console.log('[Гласово въвеждане] Разпознато текст:', transcript);
-            parseVoiceCommand(transcript.trim());
-        }
-    };
-    
-    recognition.onerror = function(event) {
-        console.error('[Гласово въвеждане] ❌ onerror събитие!');
-        console.error('[Гласово въвеждане] Цял event обект:', event);
-        console.error('[Гласово въвеждане] event.error:', event.error);
-        console.error('[Гласово въвеждане] event.message:', event.message);
-        console.error('[Гласово въвеждане] Всички свойства на event:');
-        for (let key in event) {
-            console.error('[Гласово въвеждане]  - ' + key + ':', event[key]);
-        }
-        
-        let errorMessage = '❌ Грешка при разпознаване!';
-        
-        if (event.error === 'service-not-allowed') {
-            errorMessage = '❌ Гласовите услуги не са разрешени! Моля, проверете настройките на iOS (Настройки → Общи → Клавиатура → Включи "Диктат").';
-        } else if (event.error === 'not-allowed') {
-            errorMessage = '❌ Моля, разрешете достъпа до микрофона!';
-        } else if (event.error === 'no-speech') {
-            errorMessage = '❌ Не беше засечено гласово въвеждане!';
-        } else if (event.error === 'audio-capture') {
-            errorMessage = '❌ Не е открит микрофон!';
-        } else {
-            errorMessage = '❌ Грешка: ' + event.error;
-        }
-        
-        document.getElementById('voice-status').innerText = errorMessage;
-        document.getElementById('voice-status').style.background = '#fee2e2';
-    };
-    
-    recognition.onend = function() {
-        console.log('[Гласово въвеждане] ⚠️ onend: Разпознаването приключи');
-        document.getElementById('voice-status').innerText = 'Завърших! Ако искаш да добавяш още, натисни бутона отново.';
-        document.getElementById('voice-status').style.background = '#e0f2fe';
-    };
-    
-    // Добавяме допълнителни събития за повече дебъг
-    if (typeof recognition.onaudiostart !== 'undefined') {
-        recognition.onaudiostart = function() {
-            console.log('[Гласово въвеждане] ✅ onaudiostart: Аудиото поток стартира');
-        };
-    }
-    if (typeof recognition.onaudioend !== 'undefined') {
-        recognition.onaudioend = function() {
-            console.log('[Гласово въвеждане] ⚠️ onaudioend: Аудиото поток приключи');
-        };
-    }
-    if (typeof recognition.onsoundstart !== 'undefined') {
-        recognition.onsoundstart = function() {
-            console.log('[Гласово въвеждане] ✅ onsoundstart: Звук е открит');
-        };
-    }
-    if (typeof recognition.onsoundend !== 'undefined') {
-        recognition.onsoundend = function() {
-            console.log('[Гласово въвеждане] ⚠️ onsoundend: Звукът приключи');
-        };
-    }
-    if (typeof recognition.onspeechstart !== 'undefined') {
-        recognition.onspeechstart = function() {
-            console.log('[Гласово въвеждане] ✅ onspeechstart: Глас е открит');
-        };
-    }
-    if (typeof recognition.onspeechend !== 'undefined') {
-        recognition.onspeechend = function() {
-            console.log('[Гласово въвеждане] ⚠️ onspeechend: Гласът приключи');
-        };
+    // Проверка дали имаме цени
+    if (!db.prices || Object.keys(db.prices).length === 0) {
+        alert('Моля, първо добавете артикули и цени в раздел "Цени"!');
+        return;
     }
     
-    // 1. Първо искаме достъп до микрофона (това принуждава iOS да покаже диалог)
-    console.log('[Гласово въвеждане] Изискваме достъп до микрофона...');
-    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-        navigator.mediaDevices.getUserMedia({ audio: true })
-            .then(function(stream) {
-                console.log('[Гласово въвеждане] Достъп до микрофона разрешен! Stream:', stream);
-                
-                // 2. Веднага след като получим достъп, стартираме recognition
-                console.log('[Гласово въвеждане] Стартираме recognition.start()...');
-                try {
-                    recognition.start();
-                    console.log('[Гласово въвеждане] recognition.start() е извикан успешно!');
-                } catch (err) {
-                    console.error('[Гласово въвеждане] Грешка при recognition.start():', err);
-                    alert('Грешка при стартиране на гласовото разпознаване: ' + err.message);
-                    closeVoiceModal();
-                }
-            })
-            .catch(function(err) {
-                console.error('[Гласово въвеждане] Грешка при getUserMedia:', err);
-                console.error('[Гласово въвеждане] Име на грешка:', err.name);
-                console.error('[Гласово въвеждане] Съобщение:', err.message);
-                
-                let message = 'Микрофонът е блокиран. Моля, разрешете достъпа от настройките на браузъра си!';
-                if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-                    message = 'Микрофонът е блокиран. Моля, разрешете достъпа от настройките на браузъра си!';
-                } else if (err.name === 'NotFoundError') {
-                    message = 'Не е открит микрофон! Моля, проверете дали устройството има микрофон.';
-                } else if (err.name === 'NotReadableError') {
-                    message = 'Микрофонът е зает от друго приложение!';
-                }
-                alert(message);
-                closeVoiceModal();
-            });
-    } else {
-        // Ако нямаме getUserMedia, опитваме директно
-        console.log('[Гласово въвеждане] getUserMedia не е наличен, опитваме директно start()');
-        try {
-            recognition.start();
-        } catch (err) {
-            console.error('[Гласово въвеждане] Грешка при стартиране:', err);
-            alert('Грешка при стартиране на гласовото разпознаване: ' + err.message);
-            closeVoiceModal();
-        }
-    }
-}
-
-function parseVoiceCommand(text) {
-    // Разбиваме текста на части (по запетая, "и" и т.н.)
-    const parts = text.split(/,| и |\.|;|:/);
+    // Разбиваме текста по запетаи, точки и "и"
+    const parts = text.split(/[,;.и]/).map(p => p.trim()).filter(p => p.length > 0);
+    
+    const matchedItems = [];
     
     parts.forEach(part => {
-        part = part.trim();
-        if (!part) return;
+        // Търсим число и артикул
+        const match = part.match(/(\d+)\s*(.*)/);
+        if (!match) return;
         
-        // Опитваме се да намерим число и артикул
-        const numMatch = part.match(/(\d+)\s*(.*)/);
-        if (!numMatch) return;
+        const quantity = parseInt(match[1]);
+        const searchText = match[2].toLowerCase();
         
-        const qty = parseInt(numMatch[1]);
-        let artName = numMatch[2].trim().toLowerCase();
-        
-        // Опитваме се да намерим артикул в db.prices
+        // Търси съвпадение с артикулите
         let matchedArt = null;
-        let matchedPrice = 0;
+        let artPrice = 0;
         
-        if (db.prices) {
-            Object.keys(db.prices).forEach(key => {
-                const keyLower = key.toLowerCase();
-                if (keyLower.includes(artName) || artName.includes(keyLower)) {
-                    matchedArt = key;
-                    matchedPrice = db.prices[key];
-                }
-            });
-        }
+        Object.keys(db.prices).forEach(artName => {
+            if (artName.toLowerCase().includes(searchText) || searchText.includes(artName.toLowerCase())) {
+                matchedArt = artName;
+                artPrice = db.prices[artName];
+            }
+        });
         
         if (matchedArt) {
-            // Намерихме артикул! Добавяме го
-            const total = qty * matchedPrice;
-            voiceItems.push({
+            matchedItems.push({
                 name: matchedArt,
-                qty: qty,
-                price: matchedPrice,
-                total: total
+                quantity: quantity,
+                price: artPrice,
+                total: quantity * artPrice
             });
-            
-            updateVoicePreview();
         } else {
-            // Не намерихме артикул, показваме съобщение
-            console.log('[Гласово въвеждане] Не намерих артикул:', artName);
-            const previewDiv = document.getElementById('voice-preview');
-            previewDiv.innerHTML += `<p style="color:#dc2626;">⚠️ Не разпознах артикул: "${part}"</p>`;
+            console.log('[AI Асистент] Няма съвпадение за:', part);
         }
     });
-}
-
-function updateVoicePreview() {
-    const previewDiv = document.getElementById('voice-preview');
-    const totalDiv = document.getElementById('voice-total');
     
-    if (voiceItems.length === 0) {
-        previewDiv.innerHTML = '<p style="color:#64748b;">Няма разпознати данни все още...</p>';
-        totalDiv.innerText = 'Общо: 0.00 €';
+    if (matchedItems.length === 0) {
+        alert('Няма намерени съвпадения с артикулите от "Цени". Моля, проверете и опитайте отново!');
         return;
     }
     
+    // Добавяме елементите в Плюсовете (Приходите)
     let totalSum = 0;
-    let html = '<table style="width:100%; border-collapse: collapse;">';
-    html += '<tr style="background:#e2e8f0;"><th style="padding:8px; text-align:left;">Артикул</th><th style="padding:8px;">Брой</th><th style="padding:8px;">Цена</th><th style="padding:8px;">Общо</th></tr>';
-    
-    voiceItems.forEach(item => {
+    matchedItems.forEach(item => {
         totalSum += item.total;
-        html += `<tr><td style="padding:8px; border-bottom:1px solid #e2e8f0;">${item.name}</td><td style="padding:8px; text-align:center; border-bottom:1px solid #e2e8f0;">${item.qty}</td><td style="padding:8px; text-align:right; border-bottom:1px solid #e2e8f0;">${item.price.toFixed(2)} €</td><td style="padding:8px; text-align:right; border-bottom:1px solid #e2e8f0;">${item.total.toFixed(2)} €</td></tr>`;
-    });
-    
-    html += '</table>';
-    previewDiv.innerHTML = html;
-    totalDiv.innerText = 'Общо: ' + totalSum.toFixed(2) + ' €';
-}
-
-function confirmVoiceInput() {
-    if (voiceItems.length === 0) {
-        alert('Няма разпознати данни за добавяне!');
-        return;
-    }
-    
-    // Добавяме всички разпознати елементи в Приходите
-    voiceItems.forEach(item => {
         const id = 'f' + Date.now() + Math.random();
-        if (!db.flds) db.flds = { plus: [], minus: [] };
         db.flds.plus.push({
             id: id,
-            l: item.name + ' (€)',
+            l: `${item.name} (${item.quantity} бр.)`,
             v: item.total
         });
     });
@@ -1458,43 +1375,18 @@ function confirmVoiceInput() {
     normalizeDb();
     rnd();
     calFin(false);
-    closeVoiceModal();
     
-    alert('✅ Успешно добавихте ' + voiceItems.length + ' елемента в отчета!');
-    voiceItems = [];
-}
-
-function closeVoiceModal() {
-    if (recognition) {
-        recognition.stop();
-        recognition = null;
-    }
-    document.getElementById('voice-modal').style.display = 'none';
+    // Изчистваме полето
+    aiInput.value = '';
+    
+    alert(`✅ Успешно добавени ${matchedItems.length} елемента в отчета! Общо: ${totalSum.toFixed(2)} €`);
+    
+    // Препращаме към раздел "Отчет"
+    swPg('otchet', document.querySelector('.nav-item[onclick*="otchet"]'));
 }
 
 // ДОБАВИ ТОВА ТУК, ЗА ДА СЕ СТАРТИРА ВСИЧКО:
 rnd(); 
-
-// Слушатели за онлайн/офлайн и зареждане
-window.addEventListener('online', function() {
-    console.log('[Milena] Връзка възстановена! Синхронизирам...');
-    updateConnStatus();
-    if (window.syncData) {
-        window.syncData();
-    }
-});
-
-window.addEventListener('offline', function() {
-    console.log('[Milena] Връзка загубена!');
-    updateConnStatus();
-});
-
-window.addEventListener('load', function() {
-    console.log('[Milena] Страницата е заредена! Проверявам за синхронизация...');
-    if (navigator.onLine && window.syncData && currentUser) {
-        window.syncData();
-    }
-});
 </script>
 
 <div id="calc-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:9999; padding:20px; overflow-y:auto;">  
@@ -1503,18 +1395,6 @@ window.addEventListener('load', function() {
         <div id="calc-inputs" style="text-align:left; margin-bottom:15px;"></div>
         <div style="font-size:20px; font-weight:bold; margin-bottom:15px;">Общо: <span id="calc-total">0.00</span> €</div>
         <button onclick="closeCalc()" class="btn-success">Затвори</button>
-    </div>
-</div>
-
-<!-- Модал за преглед на гласовите данни -->
-<div id="voice-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:9999; padding:20px; overflow-y:auto;">  
-    <div class="login-card" style="margin: 50px auto;">
-        <h2>🎤 Разпознати данни</h2>
-        <div id="voice-status" style="margin-bottom:10px; padding:10px; border-radius:5px; background:#e2e8f0;">Готов за запис...</div>
-        <div id="voice-preview" style="text-align:left; margin-bottom:15px; max-height:300px; overflow-y:auto;"></div>
-        <div id="voice-total" style="font-size:20px; font-weight:bold; margin-bottom:15px;">Общо: 0.00 €</div>
-        <button onclick="confirmVoiceInput()" class="btn-success" style="margin-bottom:10px;">✅ Потвърди и добави в отчета</button>
-        <button onclick="closeVoiceModal()" class="btn-danger">❌ Затвори</button>
     </div>
 </div>
 </body>
