@@ -1302,11 +1302,38 @@ function calcTotal() {
 
 function closeCalc() { document.getElementById('calc-modal').style.display = 'none'; }
 
-// Помощна функция за по-добро "fuzzy" търсене
+// Помощна функция за НОРМАЛИЗАЦИЯ на думи
+function normalizeText(text) {
+    if (!text) return '';
+    let normalized = text.toLowerCase().trim();
+    // Премахваме пунктуация
+    normalized = normalized.replace(/[.,!?;:"']/g, '');
+    // Премахваме меки/твърди знаци
+    normalized = normalized.replace(/[ъьь]/g, '');
+    // Премахваме често срещани окончания
+    normalized = normalized.replace(/(а|я|и|е|о|у|ъ|й)$/g, '');
+    // Премахваме повтарящи се интервали
+    normalized = normalized.replace(/\s+/g, ' ');
+    return normalized;
+}
+
+// Помощна функция за ПО-ДОБРО "fuzzy" търсене с частично съвпадение
 function fuzzyMatch(text1, text2) {
-    const t1 = text1.toLowerCase().replace(/[ъьь]/g, '').trim();
-    const t2 = text2.toLowerCase().replace(/[ъьь]/g, '').trim();
-    return t1.includes(t2) || t2.includes(t1);
+    const t1 = normalizeText(text1);
+    const t2 = normalizeText(text2);
+    
+    // Проверка за пълно съвпадение
+    if (t1 === t2) return true;
+    // Проверка за частично съвпадение (включва)
+    if (t1.includes(t2) || t2.includes(t1)) return true;
+    // Проверка с ПЪРВИТЕ 3-4 БУКВИ
+    const minLen = Math.min(4, Math.min(t1.length, t2.length));
+    if (minLen >= 3) {
+        const t1Start = t1.substring(0, minLen);
+        const t2Start = t2.substring(0, minLen);
+        if (t1Start === t2Start) return true;
+    }
+    return false;
 }
 
 // AI Асистент функция - НОВА, ИНТЕЛИГЕНТНА ЛОГИКА
@@ -1324,6 +1351,13 @@ function processAiCommand() {
         alert('Моля, първо добавете артикули и цени в раздел "Цени"!');
         return;
     }
+    
+    // ЛОГВАНЕ на всички налични артикули в конзолата
+    console.log('====== [AI Асистент] Налични артикули в ЦЕНИТЕ ======');
+    Object.keys(db.prices).forEach(artName => {
+        console.log(`- ${artName} (цена: ${db.prices[artName]}, нормализирано: ${normalizeText(artName)})`);
+    });
+    console.log('=====================================================');
     
     if (!db.flds.plus || db.flds.plus.length === 0) {
         alert('Моля, първо добавете полета в "ПЛЮСОВЕ" в раздел "Отчет"!');
@@ -1375,14 +1409,21 @@ function processAiCommand() {
         let matchedArt = null;
         let artPrice = 0;
         
+        console.log(`[AI Асистент] Търся артикул за: "${searchText}" (нормализирано: "${normalizeText(searchText)}")`);
+        
         // Търсим артикула в ЦЕНИТЕ с fuzzy match
         Object.keys(db.prices).forEach(artName => {
-            if (fuzzyMatch(artName, searchText)) {
+            const isMatch = fuzzyMatch(artName, searchText);
+            if (isMatch) {
                 matchedArt = artName;
                 artPrice = db.prices[artName];
-                console.log('[AI Асистент] Намерен артикул:', artName, 'с цена:', artPrice);
+                console.log(`[AI Асистент] ✅ НАМЕРЕН! Артикул: "${artName}" (цена: ${artPrice})`);
             }
         });
+        
+        if (!matchedArt) {
+            console.log(`[AI Асистент] ❌ Няма съвпадение за "${searchText}"`);
+        }
         
         if (matchedArt) {
             foundItems.push({
