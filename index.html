@@ -95,14 +95,6 @@
         Хляб "Милена" (<span id="user-title">...</span>)
         <button class="logout-btn" onclick="logout()">Изход</button>
     </header>
-    
-    <!-- AI Асистент - видим само след логин -->
-    <div id="ai-assistant" class="card" style="margin:10px; padding:15px; background:#f0f9ff; display:none;">
-        <h2 style="font-size:16px; color:#0284c7; margin-bottom:10px;">🤖 AI Асистент</h2>
-        <textarea id="ai-input" placeholder="Диктувай тук: Например: 50 бели хляба, 20 тъмни, 30 основен..." style="width:100%; height:100px; border:1px solid #cbd5e1; border-radius:8px; padding:10px; font-size:16px; resize:none; margin-bottom:10px;"></textarea>
-        <button onclick="processAiCommand()" style="width:100%; padding:12px; background:#0284c7; color:white; border:none; border-radius:8px; font-size:16px; font-weight:bold; cursor:pointer;">⚡ Изпълни команда</button>
-    </div>
-    
     <nav class="nav-bar">
         <button class="nav-item active" onclick="swPg('kasi', this)"><span>📦 КАСИ</span></button>
         <button class="nav-item" onclick="swPg('otchet', this)"><span>💶 ОТЧЕТ</span></button>
@@ -554,7 +546,6 @@
     let p = document.getElementById('user-pass').value;
     if (p === PASSWORDS[currentUser]) {
         document.getElementById('login-screen').style.display = 'none';
-        document.getElementById('ai-assistant').style.display = 'block'; // Показваме AI Асистента
         document.getElementById('user-title').innerText = currentUser.toUpperCase();
         loadData();
         // Веднага след логин, ако сме онлайн - синхронизираме
@@ -582,7 +573,6 @@
         }
     }
     document.getElementById('login-screen').style.display = 'flex'; 
-    document.getElementById('ai-assistant').style.display = 'none'; // Скриваме AI Асистента
     document.getElementById('user-select').selectedIndex = 0;
     document.getElementById('pass-area').style.display = 'none';
     document.getElementById('user-pass').value = '';
@@ -1301,154 +1291,6 @@ function calcTotal() {
 // ... (всички функции по-горе) ...
 
 function closeCalc() { document.getElementById('calc-modal').style.display = 'none'; }
-
-// ПРОСТА функция за НОРМАЛИЗАЦИЯ - само малки букви и без спец. символи
-function simpleNormalize(text) {
-    if (!text) return '';
-    // Малки букви
-    let normalized = text.toLowerCase().trim();
-    // Премахваме ВСИЧКИ специални символи и пунктуация
-    normalized = normalized.replace(/[^a-zа-я0-9\s]/g, '');
-    // Премахваме повтарящи се интервали
-    normalized = normalized.replace(/\s+/g, ' ');
-    return normalized;
-}
-
-// AI Асистент функция - НОВА, ИНТЕЛИГЕНТНА ЛОГИКА
-function processAiCommand() {
-    const aiInput = document.getElementById('ai-input');
-    const text = aiInput.value.trim();
-    
-    if (!text) {
-        alert('Моля, въведете или диктуйте текст!');
-        return;
-    }
-    
-    // Проверка дали имаме цени и съществуващи полета
-    if (!db.prices || Object.keys(db.prices).length === 0) {
-        alert('Моля, първо добавете артикули и цени в раздел "Цени"!');
-        return;
-    }
-    
-    // СЪЗДАВАМЕ СИСЦИ СЪС СЪСТАНОВЕ ЦЕНИТЕ (нормализирани)
-    const normalizedPrices = {};
-    console.log('====== [AI Асистент] НАЛИЧНИ АРТИКУЛИ ======');
-    Object.keys(db.prices).forEach(artName => {
-        const normName = simpleNormalize(artName);
-        normalizedPrices[normName] = { original: artName, price: db.prices[artName] };
-        console.log(`- ${artName} (нормализирано: ${normName})`);
-    });
-    console.log('==============================================');
-    
-    if (!db.flds.plus || db.flds.plus.length === 0) {
-        alert('Моля, първо добавете полета в "ПЛЮСОВЕ" в раздел "Отчет"!');
-        return;
-    }
-    
-    // 1. Намираме ЦЕЛЕВИЯТ ПОЛЕ (търсим "за ...")
-    let targetField = null;
-    let targetName = null;
-    let textWithoutTarget = text;
-    
-    const targetMatch = text.match(/за\s+(.+?)(?:[,;.и]|$)/i);
-    if (targetMatch) {
-        targetName = targetMatch[1].trim();
-        console.log(`[AI Асистент] Търсе целева група: "${targetName}"`);
-        
-        // Нормализираме целевия текст за търсене
-        const normTarget = simpleNormalize(targetName);
-        
-        // Търсим полето в ПЛЮСОВЕ
-        targetField = db.flds.plus.find(field => {
-            const fieldName = simpleNormalize(field.l.replace(' (€)', ''));
-            return fieldName.includes(normTarget) || normTarget.includes(fieldName);
-        });
-        
-        if (!targetField) {
-            const availableFields = db.flds.plus.map(f => f.l.replace(' (€)', '')).join(', ');
-            console.log(`[AI Асистент] ❌ Няма поле "${targetName}"! Налични полета: ${availableFields}`);
-            alert(`Не мога да намеря поле с име като "${targetName}"! Налични полета: ${availableFields}`);
-            return;
-        }
-        
-        // Премахваме "за ..." частта от текста, за да обработим само артикулите
-        textWithoutTarget = text.replace(targetMatch[0], '').trim();
-    } else {
-        // Ако няма "за ...", показваме грешка
-        alert('Моля, добавете "за [ИМЕ]" в текста, например: "100 бели хляба за Милена"!');
-        return;
-    }
-    
-    // 2. Разбираме само артикулите и бройките
-    const parts = textWithoutTarget.split(/[,;.и]/).map(p => p.trim()).filter(p => p.length > 0);
-    
-    const foundItems = [];
-    
-    parts.forEach(part => {
-        // Търсим число и артикул
-        const match = part.match(/(\d+)\s*(.*)/);
-        if (!match) return;
-        
-        const quantity = parseInt(match[1]);
-        const rawSearchText = match[2].trim();
-        const searchText = simpleNormalize(rawSearchText);
-        
-        console.log(`[AI Асистент] Търся артикул за: "${rawSearchText}" (нормализирано: "${searchText}")`);
-        
-        let matchedArtData = null;
-        
-        // ТЪРСЕНЕ С includes() ВСЕКИ АРТИКУЛ
-        for (const normArtName in normalizedPrices) {
-            const artData = normalizedPrices[normArtName];
-            // Проверяваме дали searchText ВКЛЮЧВА някоя дума от артикула или обратно
-            if (normArtName.includes(searchText) || searchText.includes(normArtName)) {
-                matchedArtData = artData;
-                console.log(`[AI Асистент] ✅ НАМЕРЕН! Артикул: "${artData.original}" (цена: ${artData.price})`);
-                break; // Вземаме първото намерено
-            }
-        }
-        
-        if (matchedArtData) {
-            foundItems.push({
-                name: matchedArtData.original,
-                quantity: quantity,
-                price: matchedArtData.price,
-                total: quantity * matchedArtData.price
-            });
-        } else {
-            const availableArts = Object.keys(normalizedPrices).map(key => normalizedPrices[key].original).join(', ');
-            console.log(`[AI Асистент] ❌ Търсих за: "${rawSearchText}", но намерих само: ${availableArts}`);
-        }
-    });
-    
-    if (foundItems.length === 0) {
-        console.log('[AI Асистент] Няма намерени артикули!');
-        alert('Няма намерени артикули! Моля, опитайте отново и проверете конзолата!');
-        return;
-    }
-    
-    // 3. Изчисляваме ОБЩАТА СУМА
-    const totalSum = foundItems.reduce((sum, item) => sum + item.total, 0);
-    
-    // 4. Обновяваме ЦЕЛЕВИЯТ ПОЛЕ
-    targetField.v = totalSum;
-    console.log('[AI Асистент] Обновено поле', targetField.l, 'със сума:', totalSum);
-    
-    // Обновяваме отчета
-    normalizeDb();
-    rnd();
-    calFin(false);
-    
-    // Изчистваме полето
-    aiInput.value = '';
-    
-    // Подготвяме текст за алерта
-    const itemsText = foundItems.map(item => `${item.quantity} ${item.name}`).join(' + ');
-    alert(`✅ Добавени са ${totalSum.toFixed(2)} € за ${targetName} (${itemsText})!`);
-    
-    // Препращаме към раздел "Отчет"
-    swPg('otchet', document.querySelector('.nav-item[onclick*="otchet"]'));
-}
 
 // ДОБАВИ ТОВА ТУК, ЗА ДА СЕ СТАРТИРА ВСИЧКО:
 rnd(); 
