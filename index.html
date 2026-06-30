@@ -40,8 +40,9 @@
         .row-total { background: #f0f9ff !important; font-weight: bold; color: var(--primary); }
         
         .money-row { display: flex; align-items: center; gap: 5px; margin-bottom: 10px; }
-        .money-row label { margin-bottom: 0; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .money-row input { margin-bottom: 0; width: 120px; }
+        .money-row label { margin-bottom: 0; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .money-row input { margin-bottom: 0; width: 120px; flex-shrink: 0; }
+        .money-row button { width: auto; flex-shrink: 0; padding: 5px 10px; }
         .del-money-btn { background: none; color: var(--danger); border: none; width: 35px; padding: 5px; font-size: 16px; }
         .del-mini { background: none; color: var(--danger); border: none; padding: 2px 4px; font-size: 12px; display: inline-block; width: auto; margin-left: 3px; }
         .th-del-box { font-size: 10px; padding: 2px; margin-top: 2px; background: #fee2e2; color: #b91c1c; border-radius: 4px; font-weight: normal; cursor: pointer; }
